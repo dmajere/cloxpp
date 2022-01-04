@@ -4,8 +4,10 @@
 
 #include <iostream>
 #include <stack>
+#include <string>
 
 #include "chunk.h"
+#include "compiler.h"
 #include "debug.h"
 #include "value.h"
 
@@ -19,8 +21,12 @@ constexpr size_t STACK_SIZE_LIMIT{256};
 class VM {
  public:
   enum class InterpretResult { OK, COMPILE_ERROR, RUNTIME_ERROR };
-  VM() {}
+  VM(std::unique_ptr<Compiler> compiler) : compiler_(std::move(compiler)) {}
   ~VM() = default;
+
+  InterpretResult interpret(const std::string& code) {
+    return InterpretResult::OK;
+  }
 
   InterpretResult interpret(const Chunk& chunk) {
     this->chunk_ = std::move(chunk);
@@ -29,6 +35,7 @@ class VM {
   }
 
  private:
+  std::unique_ptr<Compiler> compiler_;
   Chunk chunk_;
   std::vector<uint8_t>::iterator ip_;
   std::stack<Value> stack_;

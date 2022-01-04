@@ -27,7 +27,10 @@ ${CMAKE_CURRENT_SOURCE_DIR}/src/cloxpp.cpp
 
 find_package(gflags REQUIRED)
 
+find_package(folly CONFIG REQUIRED)
+include_directories(${FOLLY_INCLUDE_DIR})
+
 # add_subdirectory(test)
 
 add_executable(${This} ${Sources})
-target_link_libraries(${This} ${GFLAGS_LIBRARIES})
+target_link_libraries(${This} ${GFLAGS_LIBRARIES} ${FOLLY_LIBRARIES})
