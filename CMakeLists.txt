@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.22.1)
 set(CMAKE_CXX_STANDARD 17)
 enable_testing()
 
-# set(This cpploxlib)
-project(cloxpp)
+set(This cloxpp)
+project(${This})
 
 find_program(CMAKE_CXX_CPPCHECK NAMES cppcheck)
 if (CMAKE_CXX_CPPCHECK)
@@ -25,10 +25,9 @@ ${CMAKE_CURRENT_SOURCE_DIR}/src/cloxpp.cpp
 # add_library(${This} STATIC ${Sources})
 # add_subdirectory(src/Lox)
 
-# find_package(gflags REQUIRED)
-# target_link_libraries(${This} ${GFLAGS_LIBRARIES} lang)
+find_package(gflags REQUIRED)
 
 # add_subdirectory(test)
 
-add_executable(cloxpp ${Sources})
-# target_link_libraries(cpplox cpploxlib)
+add_executable(${This} ${Sources})
+target_link_libraries(${This} ${GFLAGS_LIBRARIES})

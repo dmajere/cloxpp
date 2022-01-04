@@ -11,13 +11,14 @@ namespace lox {
 namespace lang {
 
 enum class OpCode {
+  //   __NULL__,  // bind zero to make conditions in loops work
   CONSTANT,
   RETURN,
-};
-
-const std::unordered_map<OpCode, std::string_view> OpCodeToName = {
-    {OpCode::RETURN, "RETURN"},
-    {OpCode::CONSTANT, "CONSTANT"},
+  NEGATE,
+  ADD,
+  SUBSTRACT,
+  MULTIPLY,
+  DIVIDE,
 };
 
 struct Chunk {

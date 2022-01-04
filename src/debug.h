@@ -39,6 +39,21 @@ class Disassembler {
         std::cout << "CONSTANT '" << chunk.constants[chunk.code[++offset]]
                   << "'";
         break;
+      case OpCode::ADD:
+        std::cout << "ADD ";
+        break;
+      case OpCode::SUBSTRACT:
+        std::cout << "SUBSTRACT ";
+        break;
+      case OpCode::MULTIPLY:
+        std::cout << "MULTIPLY ";
+        break;
+      case OpCode::DIVIDE:
+        std::cout << "DIVIDE ";
+        break;
+      case OpCode::NEGATE:
+        std::cout << "NEGATE ";
+        break;
       default:
         std::cout << "UNKNOWN " << chunk.code[offset];
         break;
