@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <iostream>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -11,14 +12,23 @@ namespace lox {
 namespace lang {
 
 enum class OpCode {
-  //   __NULL__,  // bind zero to make conditions in loops work
   CONSTANT,
+  NIL,
+  TRUE,
+  FALSE,
   RETURN,
   NEGATE,
   ADD,
   SUBSTRACT,
   MULTIPLY,
   DIVIDE,
+  NOT,
+  EQUAL,
+  GREATER,
+  LESS,
+  NOT_EQUAL,
+  GREATER_EQUAL,
+  LESS_EQUAL,
 };
 
 struct Chunk {
@@ -36,7 +46,7 @@ struct Chunk {
   }
 
   int addConstant(const Value& v) {
-    constants.push_back(v);
+    constants.push_back(std::move(v));
     return constants.size() - 1;
   }
 };

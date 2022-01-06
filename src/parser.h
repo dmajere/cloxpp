@@ -10,6 +10,7 @@
 #include "chunk.h"
 #include "debug.h"
 #include "token.h"
+#include "value.h"
 
 DECLARE_bool(debug);
 
@@ -70,7 +71,7 @@ class Parser {
 
   void emitByte(uint8_t byte) {}
 
-  void emitConstant(double constant) {
+  void emitConstant(const Value& constant) {
     auto offset = chunk_.addConstant(constant);
     chunk_.addCode(OpCode::CONSTANT, previous().line);
     chunk_.addOperand(offset);
@@ -104,7 +105,23 @@ class Parser {
 
   void number() {
     double number = atof(previous().lexeme.c_str());
-    emitConstant(number);
+    emitConstant(number_value(number));
+  }
+
+  void literal() {
+    switch (previous().type) {
+      case Token::TokenType::FALSE:
+        chunk_.addCode(OpCode::FALSE, previous().line);
+        break;
+      case Token::TokenType::TRUE:
+        chunk_.addCode(OpCode::TRUE, previous().line);
+        break;
+      case Token::TokenType::NIL:
+        chunk_.addCode(OpCode::NIL, previous().line);
+        break;
+      default:
+        return;  // Unreachable
+    }
   }
 
   void grouping() {
@@ -118,6 +135,9 @@ class Parser {
     switch (op.type) {
       case Token::TokenType::MINUS:
         chunk_.addCode(OpCode::NEGATE, op.line);
+        break;
+      case Token::TokenType::BANG:
+        chunk_.addCode(OpCode::NOT, op.line);
         break;
       default:
         return;  // Unreachable
@@ -141,6 +161,24 @@ class Parser {
         break;
       case Token::TokenType::SLASH:
         chunk_.addCode(OpCode::DIVIDE, op.line);
+        break;
+      case Token::TokenType::GREATER:
+        chunk_.addCode(OpCode::GREATER, op.line);
+        break;
+      case Token::TokenType::LESS:
+        chunk_.addCode(OpCode::LESS, op.line);
+        break;
+      case Token::TokenType::BANG_EQUAL:
+        chunk_.addCode(OpCode::NOT_EQUAL, op.line);
+        break;
+      case Token::TokenType::EQUAL_EQUAL:
+        chunk_.addCode(OpCode::EQUAL, op.line);
+        break;
+      case Token::TokenType::GREATER_EQUAL:
+        chunk_.addCode(OpCode::GREATER_EQUAL, op.line);
+        break;
+      case Token::TokenType::LESS_EQUAL:
+        chunk_.addCode(OpCode::LESS_EQUAL, op.line);
         break;
       default:
         return;  // Unreachable
@@ -201,59 +239,60 @@ class Parser {
     auto unary = [this]() { this->unary(); };
     auto binary = [this]() { this->binary(); };
     auto number = [this]() { this->number(); };
+    auto literal = [this]() { this->literal(); };
 
     static const std::vector<ParseRule> rules = {
-        {grouping, nullptr, Precedence::NONE},  // LEFT_PAREN
-        {nullptr, nullptr, Precedence::NONE},   // RIGHT_PAREN
-        {nullptr, nullptr, Precedence::NONE},   // LEFT_BRACE
-        {nullptr, nullptr, Precedence::NONE},   // RIGHT_BRACE
-        {nullptr, nullptr, Precedence::NONE},   // COMMA
-        {nullptr, nullptr, Precedence::NONE},   // DOT
-        {unary, binary, Precedence::TERM},      // MINUS
-        {nullptr, binary, Precedence::TERM},    // PLUS
-        {nullptr, nullptr, Precedence::NONE},   // COLON
-        {nullptr, nullptr, Precedence::NONE},   // SEMICOLON
-        {nullptr, binary, Precedence::FACTOR},  // SLASH
-        {nullptr, binary, Precedence::FACTOR},  // STAR
-        {nullptr, nullptr, Precedence::NONE},   // BANG
-        {nullptr, nullptr, Precedence::NONE},   // EQUAL
-        {nullptr, nullptr, Precedence::NONE},   // GREATER
-        {nullptr, nullptr, Precedence::NONE},   // LESS
-        {nullptr, nullptr, Precedence::NONE},   // QUESTION
-        {nullptr, nullptr, Precedence::NONE},   // BANG_EQUAL
-        {nullptr, nullptr, Precedence::NONE},   // EQUAL_EQUAL
-        {nullptr, nullptr, Precedence::NONE},   // GREATER_EQUAL
-        {nullptr, nullptr, Precedence::NONE},   // LESS_EQUAL
-        {nullptr, nullptr, Precedence::NONE},   // MINUS_EQUAL
-        {nullptr, nullptr, Precedence::NONE},   // PLUS_EQUAL
-        {nullptr, nullptr, Precedence::NONE},   // SLASH_EQUAL
-        {nullptr, nullptr, Precedence::NONE},   // STAR_EQUAL
-        {nullptr, nullptr, Precedence::NONE},   // MINUS_MINUS
-        {nullptr, nullptr, Precedence::NONE},   // PLUS_PLUS
-        {nullptr, nullptr, Precedence::NONE},   // IDENTIFIER
-        {nullptr, nullptr, Precedence::NONE},   // STRING
-        {number, nullptr, Precedence::NONE},    // NUMBER
-        {nullptr, nullptr, Precedence::NONE},   // AND
-        {nullptr, nullptr, Precedence::NONE},   // CLASS
-        {nullptr, nullptr, Precedence::NONE},   // ELSE
-        {nullptr, nullptr, Precedence::NONE},   // FALSE
-        {nullptr, nullptr, Precedence::NONE},   // FUN
-        {nullptr, nullptr, Precedence::NONE},   // LAMBDA
-        {nullptr, nullptr, Precedence::NONE},   // FOR
-        {nullptr, nullptr, Precedence::NONE},   // IF
-        {nullptr, nullptr, Precedence::NONE},   // NIL
-        {nullptr, nullptr, Precedence::NONE},   // OR
-        {nullptr, nullptr, Precedence::NONE},   // PRINT
-        {nullptr, nullptr, Precedence::NONE},   // RETURN
-        {nullptr, nullptr, Precedence::NONE},   // SUPER
-        {nullptr, nullptr, Precedence::NONE},   // THIS
-        {nullptr, nullptr, Precedence::NONE},   // TRUE
-        {nullptr, nullptr, Precedence::NONE},   // VAR
-        {nullptr, nullptr, Precedence::NONE},   // WHILE
-        {nullptr, nullptr, Precedence::NONE},   // BREAK
-        {nullptr, nullptr, Precedence::NONE},   // CONTINUE
-        {nullptr, nullptr, Precedence::NONE},   // END
-        {nullptr, nullptr, Precedence::NONE},   // ERROR
+        {grouping, nullptr, Precedence::NONE},      // LEFT_PAREN
+        {nullptr, nullptr, Precedence::NONE},       // RIGHT_PAREN
+        {nullptr, nullptr, Precedence::NONE},       // LEFT_BRACE
+        {nullptr, nullptr, Precedence::NONE},       // RIGHT_BRACE
+        {nullptr, nullptr, Precedence::NONE},       // COMMA
+        {nullptr, nullptr, Precedence::NONE},       // DOT
+        {unary, binary, Precedence::TERM},          // MINUS
+        {nullptr, binary, Precedence::TERM},        // PLUS
+        {nullptr, nullptr, Precedence::NONE},       // COLON
+        {nullptr, nullptr, Precedence::NONE},       // SEMICOLON
+        {nullptr, binary, Precedence::FACTOR},      // SLASH
+        {nullptr, binary, Precedence::FACTOR},      // STAR
+        {unary, nullptr, Precedence::NONE},         // BANG
+        {nullptr, nullptr, Precedence::NONE},       // EQUAL
+        {nullptr, binary, Precedence::COMPARISON},  // GREATER
+        {nullptr, binary, Precedence::COMPARISON},  // LESS
+        {nullptr, nullptr, Precedence::NONE},       // QUESTION
+        {nullptr, binary, Precedence::EQUALITY},    // BANG_EQUAL
+        {nullptr, binary, Precedence::EQUALITY},    // EQUAL_EQUAL
+        {nullptr, binary, Precedence::COMPARISON},  // GREATER_EQUAL
+        {nullptr, binary, Precedence::COMPARISON},  // LESS_EQUAL
+        {nullptr, nullptr, Precedence::NONE},       // MINUS_EQUAL
+        {nullptr, nullptr, Precedence::NONE},       // PLUS_EQUAL
+        {nullptr, nullptr, Precedence::NONE},       // SLASH_EQUAL
+        {nullptr, nullptr, Precedence::NONE},       // STAR_EQUAL
+        {nullptr, nullptr, Precedence::NONE},       // MINUS_MINUS
+        {nullptr, nullptr, Precedence::NONE},       // PLUS_PLUS
+        {nullptr, nullptr, Precedence::NONE},       // IDENTIFIER
+        {nullptr, nullptr, Precedence::NONE},       // STRING
+        {number, nullptr, Precedence::NONE},        // NUMBER
+        {nullptr, nullptr, Precedence::NONE},       // AND
+        {nullptr, nullptr, Precedence::NONE},       // CLASS
+        {nullptr, nullptr, Precedence::NONE},       // ELSE
+        {literal, nullptr, Precedence::NONE},       // FALSE
+        {nullptr, nullptr, Precedence::NONE},       // FUN
+        {nullptr, nullptr, Precedence::NONE},       // LAMBDA
+        {nullptr, nullptr, Precedence::NONE},       // FOR
+        {nullptr, nullptr, Precedence::NONE},       // IF
+        {literal, nullptr, Precedence::NONE},       // NIL
+        {nullptr, nullptr, Precedence::NONE},       // OR
+        {nullptr, nullptr, Precedence::NONE},       // PRINT
+        {nullptr, nullptr, Precedence::NONE},       // RETURN
+        {nullptr, nullptr, Precedence::NONE},       // SUPER
+        {nullptr, nullptr, Precedence::NONE},       // THIS
+        {literal, nullptr, Precedence::NONE},       // TRUE;
+        {nullptr, nullptr, Precedence::NONE},       // VAR
+        {nullptr, nullptr, Precedence::NONE},       // WHILE
+        {nullptr, nullptr, Precedence::NONE},       // BREAK
+        {nullptr, nullptr, Precedence::NONE},       // CONTINUE
+        {nullptr, nullptr, Precedence::NONE},       // END
+        {nullptr, nullptr, Precedence::NONE},       // ERROR
     };
     return rules[static_cast<int>(token.type)];
   }

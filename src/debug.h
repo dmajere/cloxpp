@@ -13,6 +13,7 @@ class Disassembler {
   static inline void dis(const Chunk& chunk, const std::string& message) {
     std::cout << "=== " << message << " ===\n";
     dis(chunk);
+    std::cout << "=== === ===\n\n";
   }
 
   static inline void dis(const Chunk& chunk) {
@@ -35,9 +36,19 @@ class Disassembler {
       case OpCode::RETURN:
         std::cout << "RETURN";
         break;
+      case OpCode::TRUE:
+        std::cout << "TRUE";
+        break;
+      case OpCode::FALSE:
+        std::cout << "FALSE";
+        break;
+      case OpCode::NIL:
+        std::cout << "NIL";
+        break;
       case OpCode::CONSTANT:
-        std::cout << "CONSTANT '" << chunk.constants[chunk.code[++offset]]
-                  << "'";
+        std::cout << "CONSTANT '";
+        value(chunk.constants[chunk.code[++offset]]);
+        std::cout << "'";
         break;
       case OpCode::ADD:
         std::cout << "ADD ";
@@ -51,6 +62,27 @@ class Disassembler {
       case OpCode::DIVIDE:
         std::cout << "DIVIDE ";
         break;
+      case OpCode::NOT:
+        std::cout << "NOT ";
+        break;
+      case OpCode::EQUAL:
+        std::cout << "EQUAL ";
+        break;
+      case OpCode::GREATER_EQUAL:
+        std::cout << "GREATER_EQUAL ";
+        break;
+      case OpCode::LESS_EQUAL:
+        std::cout << "LESS_EQUAL ";
+        break;
+      case OpCode::GREATER:
+        std::cout << "GREATER ";
+        break;
+      case OpCode::LESS:
+        std::cout << "LESS ";
+        break;
+      case OpCode::NOT_EQUAL:
+        std::cout << "NOT_EQUAL ";
+        break;
       case OpCode::NEGATE:
         std::cout << "NEGATE ";
         break;
@@ -60,6 +92,16 @@ class Disassembler {
     }
     std::cout << "\n";
     return ++offset;
+  }
+
+  static inline void value(const Value& v) {
+    if (v.is_bool()) {
+      std::cout << "boolean " << (v.as_bool() ? "true" : "false");
+    } else if (v.is_number()) {
+      std::cout << "number " << v.as_number();
+    } else if (v.is_nil()) {
+      std::cout << "nil";
+    }
   }
 };
 }  // namespace lang
