@@ -94,15 +94,7 @@ class Disassembler {
     return ++offset;
   }
 
-  static inline void value(const Value& v) {
-    if (v.is_bool()) {
-      std::cout << "boolean " << (v.as_bool() ? "true" : "false");
-    } else if (v.is_number()) {
-      std::cout << "number " << v.as_number();
-    } else if (v.is_nil()) {
-      std::cout << "nil";
-    }
-  }
+  static inline void value(const Value& v) { std::cout << v; }
 };
 }  // namespace lang
 }  // namespace lox

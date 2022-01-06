@@ -5,6 +5,7 @@
 #include <iostream>
 #include <stack>
 #include <string>
+#include <variant>
 
 #include "chunk.h"
 #include "compiler.h"
@@ -16,7 +17,35 @@ DECLARE_bool(debug);
 namespace lox {
 namespace lang {
 
-constexpr size_t STACK_SIZE_LIMIT{256};
+class Stack {
+ public:
+  const Value& peek() const { return peek(0); }
+  const Value& peek(size_t i) const {
+    if (stack_.size() < i) {
+      throw std::out_of_range("stack out of range");
+    }
+    return stack_[stack_.size() - i - 1];
+  }
+
+  void pop() { stack_.pop_back(); }
+  void push(const Value& value) { stack_.push_back(std::move(value)); }
+  void popAndPush(const Value& value) {
+    pop();
+    push(value);
+  }
+  void popTwoAndPush(const Value& value) {
+    pop();
+    pop();
+    push(value);
+  }
+  bool empty() const { return stack_.empty(); }
+  size_t size() const { return stack_.size(); }
+  auto begin() { return stack_.begin(); }
+  auto end() { return stack_.end(); }
+
+ private:
+  std::vector<Value> stack_;
+};
 
 class VM {
  public:
@@ -50,26 +79,35 @@ class VM {
   std::unique_ptr<Compiler> compiler_;
   Chunk chunk_;
   std::vector<uint8_t>::iterator ip_;
-  std::stack<Value> stack_;
+  Stack stack_;
 
   InterpretResult run() {
     for (;;) {
       if (FLAGS_debug) {
-        std::cout << "[Stack : ";
+        std::cout << "=== Stack ===\n";
         if (!stack_.empty()) {
-          Disassembler::value(stack_.top());
+          for (const auto& v : stack_) {
+            std::cout << "=> ";
+            Disassembler::value(v);
+            std::cout << "\n";
+          }
         } else {
-          std::cout << "empty";
+          std::cout << "\tempty\n";
         }
-        std::cout << "]\n";
+        std::cout << "=== ===== ===\n";
       }
       const auto op = read_byte();
+
+#define BINARY_OP(op)                                              \
+  do {                                                             \
+    binary_op([](double a, double b) -> Value { return a op b; }); \
+  } while (false)
 
       switch (static_cast<OpCode>(op)) {
         case OpCode::RETURN: {
           std::cout << "Return: ";
           if (!stack_.empty()) {
-            Disassembler::value(stack_.top());
+            Disassembler::value(stack_.peek());
           }
           std::cout << "\n";
           return InterpretResult::OK;
@@ -79,110 +117,69 @@ class VM {
           break;
         }
         case OpCode::NIL: {
-          stack_.push(nil_value());
+          stack_.push(std::monostate());
           break;
         }
         case OpCode::TRUE: {
-          stack_.push(boolean_value(true));
+          stack_.push(true);
           break;
         }
         case OpCode::FALSE: {
-          stack_.push(boolean_value(false));
+          stack_.push(false);
           break;
         }
         case OpCode::ADD: {
-          binary_op(ValueType::NUMBER,
-                    [](const Value& left, const Value& right) {
-                      return number_value(left.as_number() + right.as_number());
-                    });
+          BINARY_OP(+);
           break;
         }
         case OpCode::SUBSTRACT: {
-          binary_op(ValueType::NUMBER,
-                    [](const Value& left, const Value& right) {
-                      return number_value(left.as_number() - right.as_number());
-                    });
+          BINARY_OP(-);
           break;
         }
         case OpCode::MULTIPLY: {
-          binary_op(ValueType::NUMBER,
-                    [](const Value& left, const Value& right) {
-                      return number_value(left.as_number() * right.as_number());
-                    });
+          BINARY_OP(*);
           break;
         }
         case OpCode::DIVIDE: {
-          binary_op(ValueType::NUMBER,
-                    [](const Value& left, const Value& right) {
-                      return number_value(left.as_number() / right.as_number());
-                    });
+          BINARY_OP(/);
           break;
         }
         case OpCode::NOT: {
-          Value value = stack_.top();
-          stack_.pop();
-          stack_.push(boolean_value(isFalsey(value)));
+          stack_.popAndPush(isFalsy(stack_.peek()));
           break;
         }
         case OpCode::EQUAL: {
-          Value right = stack_.top();
-          stack_.pop();
-          Value left = stack_.top();
-          stack_.pop();
-          stack_.push(boolean_value(valuesEqual(left, right)));
+          stack_.popTwoAndPush(stack_.peek(0) == stack_.peek(1));
           break;
         }
         case OpCode::NOT_EQUAL: {
-          Value right = stack_.top();
-          stack_.pop();
-          Value left = stack_.top();
-          stack_.pop();
-          stack_.push(boolean_value(valuesEqual(left, right)));
+          stack_.popTwoAndPush(stack_.peek(0) != stack_.peek(1));
           break;
         }
         case OpCode::GREATER: {
-          binary_op(
-              ValueType::BOOL,
-              [](const Value& left, const Value& right) {
-                return boolean_value(left.as_bool() > right.as_bool());
-              },
-              false);
+          BINARY_OP(>);
           break;
         }
         case OpCode::LESS: {
-          binary_op(
-              ValueType::BOOL,
-              [](const Value& left, const Value& right) {
-                return boolean_value(left.as_bool() < right.as_bool());
-              },
-              false);
+          BINARY_OP(<);
           break;
         }
         case OpCode::GREATER_EQUAL: {
-          binary_op(
-              ValueType::BOOL,
-              [](const Value& left, const Value& right) {
-                return boolean_value(left.as_bool() >= right.as_bool());
-              },
-              false);
+          BINARY_OP(>=);
           break;
         }
         case OpCode::LESS_EQUAL: {
-          binary_op(
-              ValueType::BOOL,
-              [](const Value& left, const Value& right) {
-                return boolean_value(left.as_bool() <= right.as_bool());
-              },
-              false);
+          BINARY_OP(<=);
           break;
         }
         case OpCode::NEGATE: {
-          Value value = stack_.top();
-          if (!value.is_number()) {
+          Value value = stack_.peek();
+          try {
+            auto negated = -std::get<double>(stack_.peek());
+            stack_.popAndPush(negated);
+          } catch (std::bad_variant_access&) {
             runtimeError("Operand must be a number.");
           }
-          stack_.pop();
-          stack_.push(number_value(-value.as_number()));
           break;
         }
         default:
@@ -190,6 +187,7 @@ class VM {
       }
     }
     return InterpretResult::COMPILE_ERROR;
+#undef BINARY_OP
   }
 
   void runtimeError(const std::string& message) {
@@ -201,54 +199,19 @@ class VM {
   inline uint8_t read_byte() { return (*ip_++); }
   inline Value read_constant() { return chunk_.constants[*ip_++]; }
 
-  inline void binary_op(const ValueType& type,
-                        std::function<Value(Value, Value)> op,
-                        bool run_type_check = true) {
-    Value left, right;
-    if (run_type_check) {
-      check_type(type, left, right);
-    }
-    stack_.push(op(left, right));
-  }
+  inline void binary_op(std::function<Value(double, double)> op) {
+    try {
+      auto b = std::get<double>(stack_.peek(0));
+      auto a = std::get<double>(stack_.peek(1));
 
-  bool isFalsey(const Value& value) {
-    if (value.is_nil()) {
-      return true;
-    }
-    if (value.is_bool()) {
-      return !value.as_bool();
-    }
-    return true;
-  }
-
-  bool valuesEqual(const Value& left, const Value& right) {
-    if (left.type != right.type) {
-      return false;
-    }
-    switch (left.type) {
-      case ValueType::BOOL:
-        return left.as_bool() == right.as_bool();
-      case ValueType::NIL:
-        return true;
-      case ValueType::NUMBER:
-        return left.as_number() == right.as_number();
-      default:
-        return false;  // Unreachable
+      stack_.popTwoAndPush(op(a, b));
+    } catch (std::bad_variant_access&) {
+      runtimeError("Operands must be numbers.");
     }
   }
 
-  void check_type(const ValueType& type, Value& left, Value& right) {
-    right = stack_.top();
-    if (right.type != type) {
-      runtimeError("Right operand of binary expression must be a number.");
-    }
-    stack_.pop();
-    left = stack_.top();
-    if (left.type != type) {
-      stack_.push(right);
-      runtimeError("Left operand of binary expression must be a number.");
-    }
-    stack_.pop();
+  inline bool isFalsy(const Value& v) {
+    return std::visit(FalsinessVisitor(), v);
   }
 };
 

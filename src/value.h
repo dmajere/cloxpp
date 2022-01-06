@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+#include <variant>
 #include <vector>
 
 #include "common.h"
@@ -7,36 +9,32 @@
 namespace lox {
 namespace lang {
 
-enum class ValueType {
-  BOOL,
-  NIL,
-  NUMBER,
+using Value = std::variant<double, bool, std::monostate, std::string>;
+
+std::ostream& operator<<(std::ostream& os, const Value& v);
+
+struct OutputVisitor {
+  void operator()(const double d) const { std::cout << d; }
+  void operator()(const bool b) const { std::cout << (b ? "true" : "false"); }
+  void operator()(const std::monostate n) const { std::cout << "nil"; }
+  void operator()(const std::string& s) const { std::cout << s; }
 };
 
-struct Value {
-  ValueType type;
-  union {
-    bool boolean;
-    double number;
-  } as;
+inline std::ostream& operator<<(std::ostream& os, const Value& v) {
+  std::visit(OutputVisitor(), v);
+  return os;
+}
 
-  bool is_bool() const { return type == ValueType::BOOL; }
-  bool is_number() const { return type == ValueType::NUMBER; }
-  bool is_nil() const { return type == ValueType::NIL; }
-
-  bool as_bool() const { return as.boolean; }
-  double as_number() const { return as.number; }
+struct FalsinessVisitor {
+  bool operator()(const bool b) const { return !b; }
+  bool operator()(const std::monostate n) const { return true; }
+  template <typename T>
+  bool operator()(const T& value) const {
+    return false;
+  }
 };
 
 using Values = std::vector<Value>;
-
-static inline Value boolean_value(bool value) {
-  return {ValueType::BOOL, .as = {.boolean = value}};
-}
-static inline Value number_value(double value) {
-  return {ValueType::NUMBER, .as = {.number = value}};
-}
-static inline Value nil_value() { return {ValueType::NIL}; }
 
 }  // namespace lang
 }  // namespace lox

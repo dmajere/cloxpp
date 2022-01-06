@@ -105,7 +105,7 @@ class Parser {
 
   void number() {
     double number = atof(previous().lexeme.c_str());
-    emitConstant(number_value(number));
+    emitConstant(number);
   }
 
   void literal() {
