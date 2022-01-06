@@ -25,7 +25,15 @@ class VM {
   ~VM() = default;
 
   InterpretResult interpret(const std::string& code) {
-    return InterpretResult::OK;
+    Chunk chunk;
+    if (compiler_->compile(code, chunk)) {
+      chunk_ = std::move(chunk);
+      ip_ = chunk_.code.begin();
+      auto interpret_result = run();
+      return interpret_result;
+    } else {
+      return InterpretResult::COMPILE_ERROR;
+    }
   }
 
   InterpretResult interpret(const Chunk& chunk) {
@@ -46,13 +54,16 @@ class VM {
         if (!stack_.empty()) {
           std::cout << "[Stack top: " << stack_.top() << "]\n";
         }
-        Disassembler::dis(chunk_, ip_ - chunk_.code.begin());
       }
       const auto op = read_byte();
 
       switch (static_cast<OpCode>(op)) {
         case OpCode::RETURN: {
-          std::cout << "Return: " << stack_.top() << "\n";
+          std::cout << "Return: ";
+          if (!stack_.empty()) {
+            std::cout << stack_.top();
+          }
+          std::cout << "\n";
           return InterpretResult::OK;
         }
         case OpCode::CONSTANT: {
