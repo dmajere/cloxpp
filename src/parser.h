@@ -14,6 +14,13 @@
 
 DECLARE_bool(debug);
 
+template <class... Ts>
+struct overloaded : Ts... {
+  using Ts::operator()...;
+};
+template <class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;
+
 namespace lox {
 namespace lang {
 constexpr std::string_view kExpectRightParen = "Expect ')' after expression.";
@@ -107,6 +114,8 @@ class Parser {
     double number = atof(previous().lexeme.c_str());
     emitConstant(number);
   }
+
+  void string() { emitConstant(previous().lexeme); }
 
   void literal() {
     switch (previous().type) {
@@ -240,6 +249,7 @@ class Parser {
     auto binary = [this]() { this->binary(); };
     auto number = [this]() { this->number(); };
     auto literal = [this]() { this->literal(); };
+    auto string = [this]() { this->string(); };
 
     static const std::vector<ParseRule> rules = {
         {grouping, nullptr, Precedence::NONE},      // LEFT_PAREN
@@ -270,7 +280,7 @@ class Parser {
         {nullptr, nullptr, Precedence::NONE},       // MINUS_MINUS
         {nullptr, nullptr, Precedence::NONE},       // PLUS_PLUS
         {nullptr, nullptr, Precedence::NONE},       // IDENTIFIER
-        {nullptr, nullptr, Precedence::NONE},       // STRING
+        {string, nullptr, Precedence::NONE},        // STRING
         {number, nullptr, Precedence::NONE},        // NUMBER
         {nullptr, nullptr, Precedence::NONE},       // AND
         {nullptr, nullptr, Precedence::NONE},       // CLASS

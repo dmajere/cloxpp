@@ -110,6 +110,7 @@ class VM {
             Disassembler::value(stack_.peek());
           }
           std::cout << "\n";
+          stack_.pop();
           return InterpretResult::OK;
         }
         case OpCode::CONSTANT: {
@@ -129,7 +130,23 @@ class VM {
           break;
         }
         case OpCode::ADD: {
-          BINARY_OP(+);
+          auto* stack = &stack_;
+          auto success = std::visit(
+              overloaded{
+                  [stack](const double& a, const double& b) -> bool {
+                    stack->popTwoAndPush(a + b);
+                    return true;
+                  },
+                  [stack](const std::string& a, const std::string& b) -> bool {
+                    stack->popTwoAndPush(a + b);
+                    return true;
+                  },
+                  [stack](auto& a, auto& b) -> bool { return false; },
+              },
+              stack_.peek(1), stack_.peek(0));
+          if (!success) {
+            runtimeError("Operands must be two numbers or two strings.");
+          }
           break;
         }
         case OpCode::SUBSTRACT: {
