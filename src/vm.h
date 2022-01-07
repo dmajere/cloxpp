@@ -5,6 +5,7 @@
 #include <iostream>
 #include <stack>
 #include <string>
+#include <unordered_map>
 #include <variant>
 
 #include "chunk.h"
@@ -80,6 +81,7 @@ class VM {
   Chunk chunk_;
   std::vector<uint8_t>::iterator ip_;
   Stack stack_;
+  std::unordered_map<std::string, Value> variables_;
 
   InterpretResult run() {
     for (;;) {
