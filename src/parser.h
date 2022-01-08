@@ -24,6 +24,7 @@ overloaded(Ts...) -> overloaded<Ts...>;
 namespace lox {
 namespace lang {
 constexpr std::string_view kExpectRightParen = "Expect ')' after expression.";
+constexpr std::string_view kExpectSemicolon = "Expect ';' after statement.";
 class Parser;
 
 typedef void (Parser::*ParseFn)();
@@ -39,8 +40,11 @@ class Parser {
 
   bool parse() {
     try {
-      expression();
+      while (!isAtEnd()) {
+        declaration();
+      }
       end();
+
       if (FLAGS_debug && !hadError_) {
         Disassembler::dis(chunk_, "Compiled chunk");
       }
@@ -71,16 +75,16 @@ class Parser {
   };
 
   struct ParseRule {
-    std::function<void()> prefix;
-    std::function<void()> infix;
+    std::function<void(bool canAssign)> prefix;
+    std::function<void(bool canAssign)> infix;
     const Precedence precedence;
   };
 
   void emitByte(uint8_t byte) {}
 
-  void emitConstant(const Value& constant) {
+  void emitConstant(const Value& constant, const OpCode& code, int line) {
     auto offset = chunk_.addConstant(constant);
-    chunk_.addCode(OpCode::CONSTANT, previous().line);
+    chunk_.addCode(code, line);
     chunk_.addOperand(offset);
   }
 
@@ -95,7 +99,9 @@ class Parser {
       error(previous(), "Expected expression.");
       return;
     }
-    rule.prefix();
+
+    bool canAssign = precedence <= Precedence::ASSIGNMENT;
+    rule.prefix(canAssign);
 
     while (precedence <= getRule(current()).precedence) {
       advance();
@@ -104,20 +110,80 @@ class Parser {
         error(previous(), "Expected infix expression.");
         return;
       }
-      infixRule.infix();
+      infixRule.infix(canAssign);
     }
+  }
+
+  void declaration() {
+    if (match(Token::TokenType::VAR)) {
+      variableDeclaration();
+    } else {
+      statement();
+    }
+  }
+  void variableDeclaration() {
+    const auto& global = parseVariable("Expect variable name");
+
+    if (match(Token::TokenType::EQUAL)) {
+      expression();
+    } else {
+      chunk_.addCode(OpCode::NIL, global.line);
+    }
+    defineVariable(global);
+    consume(Token::TokenType::SEMICOLON, kExpectSemicolon);
+  }
+
+  const Token& parseVariable(const std::string& error_message) {
+    return consume(Token::TokenType::IDENTIFIER, error_message);
+  }
+
+  void defineVariable(const Token& var) {
+    emitConstant(var.lexeme, OpCode::DEFINE_GLOBAL, var.line);
+  }
+
+  void statement() {
+    if (match(Token::TokenType::PRINT)) {
+      printStatement();
+    } else {
+      expressionStatement();
+    }
+  }
+
+  void printStatement() {
+    int line = previous().line;
+    expression();
+    chunk_.addCode(OpCode::PRINT, line);
+    consume(Token::TokenType::SEMICOLON, kExpectSemicolon);
+  }
+
+  void expressionStatement() {
+    expression();
+    chunk_.addCode(OpCode::POP, previous().line);
+    consume(Token::TokenType::SEMICOLON, kExpectSemicolon);
   }
 
   void expression() { parsePrecedence(Precedence::ASSIGNMENT); }
 
-  void number() {
+  void number(bool canAssign) {
     double number = atof(previous().lexeme.c_str());
-    emitConstant(number);
+    emitConstant(number, OpCode::CONSTANT, previous().line);
   }
 
-  void string() { emitConstant(previous().lexeme); }
+  void string(bool canAssign) {
+    emitConstant(previous().lexeme, OpCode::CONSTANT, previous().line);
+  }
+  void variable(bool canAssign) { namedVariable(previous(), canAssign); }
 
-  void literal() {
+  void namedVariable(const Token& token, bool canAssign) {
+    if (canAssign && match(Token::TokenType::EQUAL)) {
+      expression();
+      emitConstant(token.lexeme, OpCode::SET_GLOBAL, token.line);
+    } else {
+      emitConstant(token.lexeme, OpCode::GET_GLOBAL, token.line);
+    }
+  }
+
+  void literal(bool canAssign) {
     switch (previous().type) {
       case Token::TokenType::FALSE:
         chunk_.addCode(OpCode::FALSE, previous().line);
@@ -133,12 +199,12 @@ class Parser {
     }
   }
 
-  void grouping() {
+  void grouping(bool canAssign) {
     expression();
     consume(Token::TokenType::RIGHT_PAREN, std::string{kExpectRightParen});
   }
 
-  void unary() {
+  void unary(bool canAssign) {
     const Token& op = previous();
     parsePrecedence(Precedence::UNARY);
     switch (op.type) {
@@ -153,7 +219,7 @@ class Parser {
     }
   }
 
-  void binary() {
+  void binary(bool canAssign) {
     const Token& op = previous();
     const auto rule = getRule(op);
     parsePrecedence((Precedence)(static_cast<int>(rule.precedence) + 1));
@@ -212,6 +278,13 @@ class Parser {
     throw ParseError(std::string(message));
   }
 
+  bool match(const Token::TokenType& type) {
+    if (!check(type)) {
+      return false;
+    }
+    advance();
+    return true;
+  }
   bool check(const Token::TokenType& type) const {
     return isAtEnd() ? false : current().type == type;
   }
@@ -244,12 +317,13 @@ class Parser {
   }
 
   const ParseRule& getRule(const Token& token) {
-    auto grouping = [this]() { this->grouping(); };
-    auto unary = [this]() { this->unary(); };
-    auto binary = [this]() { this->binary(); };
-    auto number = [this]() { this->number(); };
-    auto literal = [this]() { this->literal(); };
-    auto string = [this]() { this->string(); };
+    auto grouping = [this](bool canAssign) { this->grouping(canAssign); };
+    auto unary = [this](bool canAssign) { this->unary(canAssign); };
+    auto binary = [this](bool canAssign) { this->binary(canAssign); };
+    auto number = [this](bool canAssign) { this->number(canAssign); };
+    auto literal = [this](bool canAssign) { this->literal(canAssign); };
+    auto string = [this](bool canAssign) { this->string(canAssign); };
+    auto variable = [this](bool canAssign) { this->variable(canAssign); };
 
     static const std::vector<ParseRule> rules = {
         {grouping, nullptr, Precedence::NONE},      // LEFT_PAREN
@@ -279,7 +353,7 @@ class Parser {
         {nullptr, nullptr, Precedence::NONE},       // STAR_EQUAL
         {nullptr, nullptr, Precedence::NONE},       // MINUS_MINUS
         {nullptr, nullptr, Precedence::NONE},       // PLUS_PLUS
-        {nullptr, nullptr, Precedence::NONE},       // IDENTIFIER
+        {variable, nullptr, Precedence::NONE},      // IDENTIFIER
         {string, nullptr, Precedence::NONE},        // STRING
         {number, nullptr, Precedence::NONE},        // NUMBER
         {nullptr, nullptr, Precedence::NONE},       // AND

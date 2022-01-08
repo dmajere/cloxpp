@@ -50,6 +50,21 @@ class Disassembler {
         value(chunk.constants[chunk.code[++offset]]);
         std::cout << "'";
         break;
+      case OpCode::DEFINE_GLOBAL:
+        std::cout << "DEFINE_GLOBAL '";
+        value(chunk.constants[chunk.code[++offset]]);
+        std::cout << "'";
+        break;
+      case OpCode::GET_GLOBAL:
+        std::cout << "GET_GLOBAL '";
+        value(chunk.constants[chunk.code[++offset]]);
+        std::cout << "'";
+        break;
+      case OpCode::SET_GLOBAL:
+        std::cout << "SET_GLOBAL '";
+        value(chunk.constants[chunk.code[++offset]]);
+        std::cout << "'";
+        break;
       case OpCode::ADD:
         std::cout << "ADD ";
         break;
@@ -85,6 +100,12 @@ class Disassembler {
         break;
       case OpCode::NEGATE:
         std::cout << "NEGATE ";
+        break;
+      case OpCode::PRINT:
+        std::cout << "PRINT ";
+        break;
+      case OpCode::POP:
+        std::cout << "POP ";
         break;
       default:
         std::cout << "UNKNOWN " << chunk.code[offset];

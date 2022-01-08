@@ -81,7 +81,7 @@ class VM {
   Chunk chunk_;
   std::vector<uint8_t>::iterator ip_;
   Stack stack_;
-  std::unordered_map<std::string, Value> variables_;
+  std::unordered_map<std::string, Value> globals_;
 
   InterpretResult run() {
     for (;;) {
@@ -107,13 +107,46 @@ class VM {
 
       switch (static_cast<OpCode>(op)) {
         case OpCode::RETURN: {
-          std::cout << "Return: ";
-          if (!stack_.empty()) {
-            Disassembler::value(stack_.peek());
-          }
-          std::cout << "\n";
-          stack_.pop();
           return InterpretResult::OK;
+        }
+        case OpCode::PRINT: {
+          Disassembler::value(stack_.peek());
+          stack_.pop();
+          std::cout << "\n";
+          break;
+        }
+        case OpCode::DEFINE_GLOBAL: {
+          std::string name = read_string();
+          auto it = globals_.find(name);
+          if (it != globals_.end()) {
+            runtimeError("Variable already defined");
+          }
+          globals_.insert({std::move(name), std::move(stack_.peek(0))});
+          stack_.pop();
+          break;
+        }
+        case OpCode::SET_GLOBAL: {
+          auto name = read_string();
+          auto it = globals_.find(name);
+          if (it == globals_.end()) {
+            runtimeError("Undefined variable");
+          }
+
+          it->second = std::move(stack_.peek(0));
+          break;
+        }
+        case OpCode::GET_GLOBAL: {
+          auto name = read_string();
+          auto it = globals_.find(name);
+          if (it == globals_.end()) {
+            runtimeError("Undefined variable");
+          }
+          stack_.push(it->second);
+          break;
+        }
+        case OpCode::POP: {
+          stack_.pop();
+          break;
         }
         case OpCode::CONSTANT: {
           stack_.push(read_constant());
@@ -217,6 +250,9 @@ class VM {
   }
   inline uint8_t read_byte() { return (*ip_++); }
   inline Value read_constant() { return chunk_.constants[*ip_++]; }
+  inline std::string read_string() {
+    return std::get<std::string>(read_constant());
+  }
 
   inline void binary_op(std::function<Value(double, double)> op) {
     try {
