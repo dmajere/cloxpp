@@ -13,13 +13,15 @@
 #include "debug.h"
 #include "value.h"
 
-DECLARE_bool(debug);
+DECLARE_bool(debug_stack);
 
 namespace lox {
 namespace lang {
 
 class Stack {
  public:
+  Value get(size_t i) const { return stack_[i]; }
+
   const Value& peek() const { return peek(0); }
   const Value& peek(size_t i) const {
     if (stack_.size() < i) {
@@ -27,6 +29,7 @@ class Stack {
     }
     return stack_[stack_.size() - i - 1];
   }
+  void set(size_t i, const Value& value) { stack_[i] = std::move(value); }
 
   void pop() { stack_.pop_back(); }
   void push(const Value& value) { stack_.push_back(std::move(value)); }
@@ -85,7 +88,7 @@ class VM {
 
   InterpretResult run() {
     for (;;) {
-      if (FLAGS_debug) {
+      if (FLAGS_debug_stack) {
         std::cout << "=== Stack ===\n";
         if (!stack_.empty()) {
           for (const auto& v : stack_) {
@@ -142,6 +145,17 @@ class VM {
             runtimeError("Undefined variable");
           }
           stack_.push(it->second);
+          break;
+        }
+        case OpCode::GET_LOCAL: {
+          uint8_t slot = read_byte();
+          stack_.push(stack_.get(slot));
+          break;
+        }
+        case OpCode::SET_LOCAL: {
+          uint8_t slot = read_byte();
+          Value copy = stack_.peek(0);
+          stack_.set(slot, copy);
           break;
         }
         case OpCode::POP: {

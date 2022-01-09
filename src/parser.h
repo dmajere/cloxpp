@@ -9,6 +9,7 @@
 
 #include "chunk.h"
 #include "debug.h"
+#include "scope.h"
 #include "token.h"
 #include "value.h"
 
@@ -24,6 +25,7 @@ overloaded(Ts...) -> overloaded<Ts...>;
 namespace lox {
 namespace lang {
 constexpr std::string_view kExpectRightParen = "Expect ')' after expression.";
+constexpr std::string_view kExpectRightBrace = "Expect '}' after expression.";
 constexpr std::string_view kExpectSemicolon = "Expect ';' after statement.";
 class Parser;
 
@@ -35,8 +37,8 @@ struct ParseError : public std::runtime_error {
 
 class Parser {
  public:
-  Parser(const std::vector<Token>& tokens, Chunk& chunk)
-      : tokens_{tokens}, chunk_{chunk}, current_{0} {}
+  Parser(const std::vector<Token>& tokens, Chunk& chunk, Scope& scope)
+      : tokens_{tokens}, chunk_{chunk}, scope_{scope}, current_{0} {}
 
   bool parse() {
     try {
@@ -57,6 +59,7 @@ class Parser {
  private:
   const std::vector<Token>& tokens_;
   Chunk& chunk_;
+  Scope& scope_;
   size_t current_;
   bool hadError_{false};
 
@@ -121,8 +124,10 @@ class Parser {
       statement();
     }
   }
+
   void variableDeclaration() {
     const auto& global = parseVariable("Expect variable name");
+    declareVariable();
 
     if (match(Token::TokenType::EQUAL)) {
       expression();
@@ -138,14 +143,50 @@ class Parser {
   }
 
   void defineVariable(const Token& var) {
+    if (scope_.depth() > 0) {
+      scope_.markInitialized();
+      return;
+    }
     emitConstant(var.lexeme, OpCode::DEFINE_GLOBAL, var.line);
+  }
+
+  void declareVariable() {
+    if (scope_.depth() == 0) return;
+    addLocal(previous());
+  }
+
+  void addLocal(const Token& name) {
+    try {
+      scope_.addLocal(name);
+
+    } catch (std::runtime_error&) {
+      error(name, "Variable already defined.");
+    }
   }
 
   void statement() {
     if (match(Token::TokenType::PRINT)) {
       printStatement();
+    } else if (match(Token::TokenType::LEFT_BRACE)) {
+      try {
+        beginScope();
+        block();
+        endScope();
+      } catch (ParseError& error) {
+        endScope();
+        throw error;
+      }
     } else {
       expressionStatement();
+    }
+  }
+
+  void beginScope() { scope_.incrementDepth(); }
+  void endScope() {
+    auto removed_vars = scope_.decrementDepth();
+    int line = previous().line;
+    while (removed_vars--) {
+      chunk_.addCode(OpCode::POP, line);
     }
   }
 
@@ -154,6 +195,13 @@ class Parser {
     expression();
     chunk_.addCode(OpCode::PRINT, line);
     consume(Token::TokenType::SEMICOLON, kExpectSemicolon);
+  }
+
+  void block() {
+    while (!check(Token::TokenType::RIGHT_BRACE)) {
+      declaration();
+    }
+    consume(Token::TokenType::RIGHT_BRACE, kExpectRightBrace);
   }
 
   void expressionStatement() {
@@ -175,12 +223,33 @@ class Parser {
   void variable(bool canAssign) { namedVariable(previous(), canAssign); }
 
   void namedVariable(const Token& token, bool canAssign) {
+    int offset = resolveLocal(token);
+
     if (canAssign && match(Token::TokenType::EQUAL)) {
       expression();
-      emitConstant(token.lexeme, OpCode::SET_GLOBAL, token.line);
+      if (offset != -1) {
+        chunk_.addCode(OpCode::SET_LOCAL, token.line);
+        chunk_.addOperand(static_cast<uint8_t>(offset));
+      } else {
+        emitConstant(token.lexeme, OpCode::SET_GLOBAL, token.line);
+      }
     } else {
-      emitConstant(token.lexeme, OpCode::GET_GLOBAL, token.line);
+      if (offset != -1) {
+        chunk_.addCode(OpCode::GET_LOCAL, token.line);
+        chunk_.addOperand(static_cast<uint8_t>(offset));
+      } else {
+        emitConstant(token.lexeme, OpCode::GET_GLOBAL, token.line);
+      }
     }
+  }
+
+  inline size_t resolveLocal(const Token& name) {
+    try {
+      return scope_.find(name);
+    } catch (std::runtime_error&) {
+      error(previous(), "Uninitialized variable");
+    }
+    return -1;  // unreachable
   }
 
   void literal(bool canAssign) {

@@ -10,6 +10,7 @@
 #include "vm.h"
 
 DEFINE_bool(debug, false, "Toggle debug information");
+DEFINE_bool(debug_stack, false, "Toggle debug stack information");
 
 int main(int argc, char** argv) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
