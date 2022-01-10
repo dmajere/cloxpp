@@ -8,57 +8,35 @@
 #include <unordered_map>
 #include <variant>
 
-#include "chunk.h"
-#include "compiler.h"
-#include "debug.h"
-#include "value.h"
+#include "Stack.h"
+#include "compiler/Chunk.h"
+#include "compiler/Compiler.h"
+#include "compiler/Value.h"
+#include "compiler/debug.h"
 
 DECLARE_bool(debug_stack);
+
+using namespace lox::compiler;
+
+template <class... Ts>
+struct overloaded : Ts... {
+  using Ts::operator()...;
+};
+template <class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;
 
 namespace lox {
 namespace lang {
 
-class Stack {
- public:
-  Value get(size_t i) const { return stack_[i]; }
-
-  const Value& peek() const { return peek(0); }
-  const Value& peek(size_t i) const {
-    if (stack_.size() < i) {
-      throw std::out_of_range("stack out of range");
-    }
-    return stack_[stack_.size() - i - 1];
-  }
-  void set(size_t i, const Value& value) { stack_[i] = std::move(value); }
-
-  void pop() { stack_.pop_back(); }
-  void push(const Value& value) { stack_.push_back(std::move(value)); }
-  void popAndPush(const Value& value) {
-    pop();
-    push(value);
-  }
-  void popTwoAndPush(const Value& value) {
-    pop();
-    pop();
-    push(value);
-  }
-  bool empty() const { return stack_.empty(); }
-  size_t size() const { return stack_.size(); }
-  auto begin() { return stack_.begin(); }
-  auto end() { return stack_.end(); }
-
- private:
-  std::vector<Value> stack_;
-};
-
 class VM {
  public:
   enum class InterpretResult { OK, COMPILE_ERROR, RUNTIME_ERROR };
+
   VM(std::unique_ptr<Compiler> compiler) : compiler_(std::move(compiler)) {}
   ~VM() = default;
 
   InterpretResult interpret(const std::string& code) {
-    Chunk chunk;
+    lox::compiler::Chunk chunk;
     if (compiler_->compile(code, chunk)) {
       chunk_ = std::move(chunk);
       ip_ = chunk_.code.begin();
@@ -73,7 +51,7 @@ class VM {
     }
   }
 
-  InterpretResult interpret(const Chunk& chunk) {
+  InterpretResult interpret(const lox::compiler::Chunk& chunk) {
     this->chunk_ = std::move(chunk);
     this->ip_ = chunk_.code.begin();
     return run();
@@ -81,7 +59,7 @@ class VM {
 
  private:
   std::unique_ptr<Compiler> compiler_;
-  Chunk chunk_;
+  lox::compiler::Chunk chunk_;
   std::vector<uint8_t>::iterator ip_;
   Stack stack_;
   std::unordered_map<std::string, Value> globals_;
@@ -93,7 +71,7 @@ class VM {
         if (!stack_.empty()) {
           for (const auto& v : stack_) {
             std::cout << "=> ";
-            Disassembler::value(v);
+            lox::compiler::Disassembler::value(v);
             std::cout << "\n";
           }
         } else {
@@ -113,7 +91,7 @@ class VM {
           return InterpretResult::OK;
         }
         case OpCode::PRINT: {
-          Disassembler::value(stack_.peek());
+          lox::compiler::Disassembler::value(stack_.peek());
           stack_.pop();
           std::cout << "\n";
           break;
@@ -124,6 +102,7 @@ class VM {
           if (it != globals_.end()) {
             runtimeError("Variable already defined");
           }
+          std::cout << "define " << name << " = " << stack_.peek(0) << "\n";
           globals_.insert({std::move(name), std::move(stack_.peek(0))});
           stack_.pop();
           break;
@@ -262,6 +241,7 @@ class VM {
     // resetStack();
     throw std::runtime_error("error");
   }
+
   inline uint8_t read_byte() { return (*ip_++); }
   inline Value read_constant() { return chunk_.constants[*ip_++]; }
   inline std::string read_string() {

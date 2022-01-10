@@ -6,11 +6,10 @@
 #include <unordered_map>
 #include <vector>
 
-#include "common.h"
-#include "value.h"
+#include "Value.h"
 
 namespace lox {
-namespace lang {
+namespace compiler {
 
 enum class OpCode {
   CONSTANT,
@@ -41,8 +40,8 @@ enum class OpCode {
 
 struct Chunk {
   std::vector<uint8_t> code;
+  std::vector<Value> constants;
   std::vector<int> lines;
-  Values constants;
 
   void addCode(const OpCode& c, int line) {
     code.push_back(static_cast<uint8_t>(c));
@@ -65,5 +64,5 @@ struct Chunk {
   }
 };
 
-}  // namespace lang
+}  // namespace compiler
 }  // namespace lox

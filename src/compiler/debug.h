@@ -3,10 +3,11 @@
 #include <iostream>
 #include <string>
 
-#include "chunk.h"
+#include "Chunk.h"
+#include "Value.h"
 
 namespace lox {
-namespace lang {
+namespace compiler {
 
 class Disassembler {
  public:
@@ -125,5 +126,5 @@ class Disassembler {
 
   static inline void value(const Value& v) { std::cout << v; }
 };
-}  // namespace lang
+}  // namespace compiler
 }  // namespace lox

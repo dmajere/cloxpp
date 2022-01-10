@@ -4,10 +4,8 @@
 #include <variant>
 #include <vector>
 
-#include "common.h"
-
 namespace lox {
-namespace lang {
+namespace compiler {
 
 using Value = std::variant<double, bool, std::monostate, std::string>;
 
@@ -17,7 +15,9 @@ struct OutputVisitor {
   void operator()(const double d) const { std::cout << d; }
   void operator()(const bool b) const { std::cout << (b ? "true" : "false"); }
   void operator()(const std::monostate n) const { std::cout << "nil"; }
-  void operator()(const std::string& s) const { std::cout << s; }
+  void operator()(const std::string& s) const {
+    std::cout << "\"" << s << "\"";
+  }
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Value& v) {
@@ -34,7 +34,5 @@ struct FalsinessVisitor {
   }
 };
 
-using Values = std::vector<Value>;
-
-}  // namespace lang
+}  // namespace compiler
 }  // namespace lox

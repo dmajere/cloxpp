@@ -21,16 +21,11 @@ set(Sources
 ${CMAKE_CURRENT_SOURCE_DIR}/src/cloxpp.cpp
 )
 
-
-# add_library(${This} STATIC ${Sources})
-# add_subdirectory(src/Lox)
+add_subdirectory(src/compiler)
 
 find_package(gflags REQUIRED)
-
 find_package(folly CONFIG REQUIRED)
 include_directories(${FOLLY_INCLUDE_DIR})
 
-# add_subdirectory(test)
-
 add_executable(${This} ${Sources})
-target_link_libraries(${This} ${GFLAGS_LIBRARIES} ${FOLLY_LIBRARIES})
+target_link_libraries(${This} compiler ${GFLAGS_LIBRARIES} ${FOLLY_LIBRARIES} )
