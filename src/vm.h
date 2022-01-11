@@ -66,8 +66,10 @@ class VM {
 
   InterpretResult run() {
     for (;;) {
+      const uint8_t op = read_byte();
+
       if (FLAGS_debug_stack) {
-        std::cout << "=== Stack ===\n";
+        std::cout << "=== Stack: " << static_cast<int>(op) << " ===\n";
         if (!stack_.empty()) {
           for (const auto& v : stack_) {
             std::cout << "=> ";
@@ -79,7 +81,6 @@ class VM {
         }
         std::cout << "=== ===== ===\n";
       }
-      const auto op = read_byte();
 
 #define BINARY_OP(op)                                              \
   do {                                                             \
@@ -87,12 +88,29 @@ class VM {
   } while (false)
 
       switch (static_cast<OpCode>(op)) {
+        case OpCode::LOOP: {
+          uint16_t offset = read_short();
+          ip_ -= offset;
+          break;
+        }
+        case OpCode::JUMP_IF_FALSE: {
+          uint16_t offset = read_short();
+          if (isFalsy(stack_.peek(0))) {
+            ip_ += offset;
+          }
+          break;
+        }
+        case OpCode::JUMP: {
+          uint16_t offset = read_short();
+          ip_ += offset;
+          break;
+        }
         case OpCode::RETURN: {
           return InterpretResult::OK;
         }
         case OpCode::PRINT: {
+          std::cout << "[Out]: ";
           lox::compiler::Disassembler::value(stack_.peek());
-          stack_.pop();
           std::cout << "\n";
           break;
         }
@@ -102,7 +120,6 @@ class VM {
           if (it != globals_.end()) {
             runtimeError("Variable already defined");
           }
-          std::cout << "define " << name << " = " << stack_.peek(0) << "\n";
           globals_.insert({std::move(name), std::move(stack_.peek(0))});
           stack_.pop();
           break;
@@ -138,7 +155,9 @@ class VM {
           break;
         }
         case OpCode::POP: {
-          stack_.pop();
+          if (!stack_.empty()) {
+            stack_.pop();
+          }
           break;
         }
         case OpCode::CONSTANT: {
@@ -243,6 +262,10 @@ class VM {
   }
 
   inline uint8_t read_byte() { return (*ip_++); }
+  inline uint16_t read_short() {
+    ip_ += 2;
+    return (uint16_t)(*(ip_ - 2) << 8 | *(ip_ - 1));
+  }
   inline Value read_constant() { return chunk_.constants[*ip_++]; }
   inline std::string read_string() {
     return std::get<std::string>(read_constant());

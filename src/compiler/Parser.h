@@ -61,6 +61,9 @@ class Parser {
   void printStatement(int depth);
   void block(int depth);
   void expressionStatement(int depth);
+  void ifStatement(int depth);
+  void whileStatement(int depth);
+  void forStatement(int depth);
   void expression(int depth);
   void grouping(int depth, bool canAssign);
   void unary(int depth, bool canAssign);
@@ -69,6 +72,8 @@ class Parser {
   void string(int depth, bool canAssign);
   void literal(int depth, bool canAssign);
   void variable(int depth, bool canAssign);
+  void and_(int depth, bool canAssign);
+  void or_(int depth, bool canAssign);
 
   const Token& parseVariable(const std::string& error_message);
   void declareVariable(const Token& name, int depth);
@@ -85,6 +90,32 @@ class Parser {
     auto offset = chunk_.addConstant(constant);
     chunk_.addCode(code, line);
     chunk_.addOperand(offset);
+  }
+  inline int emitJump(const OpCode& code, int line) {
+    chunk_.addCode(code, line);
+    chunk_.addOperand(0xff);
+    chunk_.addOperand(0xff);
+    return chunk_.code.size() - 2;
+  }
+  inline void patchJump(int offset) {
+    int jump = chunk_.code.size() - offset - 2;
+
+    if (jump > std::numeric_limits<uint16_t>::max()) {
+      parse_error(scanner_->previous(), "loop body too large");
+    }
+
+    chunk_.code[offset] = (jump >> 8) & 0xff;
+    chunk_.code[offset + 1] = jump & 0xff;
+  }
+
+  inline void emitLoop(int loopStart, int line) {
+    chunk_.addCode(OpCode::LOOP, line);
+    int offset = chunk_.code.size() - loopStart + 2;
+    if (offset > std::numeric_limits<uint16_t>::max()) {
+      parse_error(scanner_->previous(), "loop body too large");
+    }
+    chunk_.addOperand((offset >> 8) & 0xff);
+    chunk_.addOperand(offset & 0xff);
   }
 
   static inline void parse_error(const Token& token,
@@ -116,6 +147,12 @@ class Parser {
     };
     auto variable = [this](int depth, bool canAssign) {
       this->variable(depth, canAssign);
+    };
+    auto and_ = [this](int depth, bool canAssign) {
+      this->and_(depth, canAssign);
+    };
+    auto or_ = [this](int depth, bool canAssign) {
+      this->or_(depth, canAssign);
     };
 
     static const std::vector<ParseRule> rules = {
@@ -149,7 +186,7 @@ class Parser {
         {variable, nullptr, Precedence::NONE},      // IDENTIFIER
         {string, nullptr, Precedence::NONE},        // STRING
         {number, nullptr, Precedence::NONE},        // NUMBER
-        {nullptr, nullptr, Precedence::NONE},       // AND
+        {nullptr, and_, Precedence::AND},           // AND
         {nullptr, nullptr, Precedence::NONE},       // CLASS
         {nullptr, nullptr, Precedence::NONE},       // ELSE
         {literal, nullptr, Precedence::NONE},       // FALSE
@@ -158,7 +195,7 @@ class Parser {
         {nullptr, nullptr, Precedence::NONE},       // FOR
         {nullptr, nullptr, Precedence::NONE},       // IF
         {literal, nullptr, Precedence::NONE},       // NIL
-        {nullptr, nullptr, Precedence::NONE},       // OR
+        {nullptr, or_, Precedence::OR},             // OR
         {nullptr, nullptr, Precedence::NONE},       // PRINT
         {nullptr, nullptr, Precedence::NONE},       // RETURN
         {nullptr, nullptr, Precedence::NONE},       // SUPER

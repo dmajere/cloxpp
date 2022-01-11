@@ -6,6 +6,7 @@
 #include "ParseError.h"
 
 DECLARE_bool(debug);
+constexpr std::string_view kExpectLeftParen = "Expect '(' after expression.";
 constexpr std::string_view kExpectRightParen = "Expect ')' after expression.";
 constexpr std::string_view kExpectRightBrace = "Expect '}' after expression.";
 constexpr std::string_view kExpectSemicolon = "Expect ';' after statement.";
@@ -23,9 +24,11 @@ bool Parser::run() {
       Disassembler::dis(chunk_, "Compiled chunk");
     }
   } catch (ParseError& error) {
+    hadError_ = true;
     std::cout << error.what();
     scanner_->synchronize();
   } catch (RuntimeError& error) {
+    hadError_ = true;
     std::cout << error.what();
     scanner_->synchronize();
   }
@@ -58,6 +61,12 @@ void Parser::variableDeclaration(int depth) {
 void Parser::statement(int depth) {
   if (scanner_->match(Token::Type::PRINT)) {
     printStatement(depth);
+  } else if (scanner_->match(Token::Type::WHILE)) {
+    whileStatement(depth);
+  } else if (scanner_->match(Token::Type::FOR)) {
+    forStatement(depth);
+  } else if (scanner_->match(Token::Type::IF)) {
+    ifStatement(depth);
   } else if (scanner_->match(Token::Type::LEFT_BRACE)) {
     try {
       block(depth + 1);
@@ -89,6 +98,111 @@ void Parser::expressionStatement(int depth) {
   expression(depth);
   chunk_.addCode(OpCode::POP, scanner_->previous().line);
   scanner_->consume(Token::Type::SEMICOLON, kExpectSemicolon);
+}
+
+void Parser::ifStatement(int depth) {
+  int line = scanner_->previous().line;
+  scanner_->consume(Token::Type::LEFT_PAREN, kExpectLeftParen);
+  expression(depth);
+  scanner_->consume(Token::Type::RIGHT_PAREN, kExpectRightParen);
+
+  int thenJump = emitJump(OpCode::JUMP_IF_FALSE, line);
+  chunk_.addCode(OpCode::POP, line);
+  statement(depth);
+  line = scanner_->previous().line;
+  int elseJump = emitJump(OpCode::JUMP, line);
+  patchJump(thenJump);
+  chunk_.addCode(OpCode::POP, line);
+
+  if (scanner_->match(Token::Type::ELSE)) {
+    statement(depth);
+  }
+  patchJump(elseJump);
+}
+
+void Parser::whileStatement(int depth) {
+  int line = scanner_->previous().line;
+  int loopStart = chunk_.code.size();
+  scanner_->consume(Token::Type::LEFT_PAREN, kExpectLeftParen);
+  expression(depth);
+  scanner_->consume(Token::Type::RIGHT_PAREN, kExpectRightParen);
+
+  int exitJump = emitJump(OpCode::JUMP_IF_FALSE, line);
+  chunk_.addCode(OpCode::POP, line);
+  statement(depth);
+  emitLoop(loopStart, line);
+
+  patchJump(exitJump);
+  chunk_.addCode(OpCode::POP, line);
+}
+
+void Parser::forStatement(int depth) {
+  int line = scanner_->previous().line;
+  int scope = depth + 1;
+  scanner_->consume(Token::Type::LEFT_PAREN, kExpectLeftParen);
+
+  // init
+  if (scanner_->match(Token::Type::SEMICOLON)) {
+    // nil
+  } else if (scanner_->match(Token::Type::VAR)) {
+    variableDeclaration(scope);
+  } else {
+    expressionStatement(scope);
+  }
+  int loopStart = chunk_.code.size();
+
+  // condition
+  int exitJump = -1;
+  if (!scanner_->match(Token::Type::SEMICOLON)) {
+    expression(scope);
+    scanner_->consume(Token::Type::SEMICOLON, kExpectSemicolon);
+
+    exitJump = emitJump(OpCode::JUMP_IF_FALSE, line);
+    chunk_.addCode(OpCode::POP, line);
+  }
+
+  // increment
+  if (!scanner_->match(Token::Type::RIGHT_PAREN)) {
+    int bodyJump = emitJump(OpCode::JUMP, line);
+
+    int incrementStart = chunk_.code.size();
+    expression(scope);
+    chunk_.addCode(OpCode::POP, line);
+    scanner_->consume(Token::Type::RIGHT_PAREN, kExpectRightParen);
+
+    emitLoop(loopStart, line);
+    loopStart = incrementStart;
+    patchJump(bodyJump);
+  }
+
+  statement(scope);
+
+  emitLoop(loopStart, line);
+
+  if (exitJump != -1) {
+    patchJump(exitJump);
+    chunk_.addCode(OpCode::POP, line);
+  }
+  endScope();
+}
+
+void Parser::and_(int depth, bool canAssign) {
+  int line = scanner_->previous().line;
+  int endJump = emitJump(OpCode::JUMP_IF_FALSE, line);
+  chunk_.addCode(OpCode::POP, line);
+  parsePrecedence(depth, Precedence::AND);
+  patchJump(endJump);
+}
+
+void Parser::or_(int depth, bool canAssign) {
+  int line = scanner_->previous().line;
+  int elseJump = emitJump(OpCode::JUMP_IF_FALSE, line);
+  int endJump = emitJump(OpCode::JUMP, line);
+  patchJump(elseJump);
+  chunk_.addCode(OpCode::POP, line);
+
+  parsePrecedence(depth, Precedence::OR);
+  patchJump(endJump);
 }
 
 void Parser::endScope() {

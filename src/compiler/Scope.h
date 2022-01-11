@@ -26,13 +26,13 @@ class Scope {
     int position;
 
     if (depth == locals_.size()) {
-      auto& scope = locals_.back();
       locals_.push_back({});
-      if (!scope.empty()) {
-        position = scope.back().position + 1;
-      } else {
-        position = 0;
-      }
+    }
+    auto& scope = locals_.back();
+    if (!scope.empty()) {
+      position = scope.back().position + 1;
+    } else {
+      position = 0;
     }
 
     auto maybeDefined = find(name, depth);

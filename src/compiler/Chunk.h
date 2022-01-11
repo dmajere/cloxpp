@@ -36,6 +36,9 @@ enum class OpCode {
   SET_GLOBAL,
   GET_LOCAL,
   SET_LOCAL,
+  JUMP_IF_FALSE,
+  JUMP,
+  LOOP,
 };
 
 struct Chunk {

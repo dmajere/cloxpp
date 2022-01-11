@@ -34,6 +34,25 @@ class Disassembler {
     }
     auto op = static_cast<OpCode>(chunk.code[offset]);
     switch (op) {
+      case OpCode::LOOP: {
+        uint16_t jump_ =
+            (uint16_t)((chunk.code[++offset] << 8) | chunk.code[++offset]);
+        std::cout << "LOOP " << jump_;
+        break;
+      }
+      case OpCode::JUMP_IF_FALSE: {
+        uint16_t jump_ =
+            (uint16_t)((chunk.code[++offset] << 8) | chunk.code[++offset]);
+        std::cout << "JUMP_IF_FALSE " << jump_;
+        break;
+      }
+      case OpCode::JUMP: {
+        uint16_t jump_ =
+            (uint16_t)((chunk.code[++offset] << 8) | chunk.code[++offset]);
+        std::cout << "JUMP " << jump_;
+        offset++;
+        break;
+      }
       case OpCode::RETURN:
         std::cout << "RETURN";
         break;
