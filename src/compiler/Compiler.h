@@ -15,8 +15,8 @@ class Compiler {
   Compiler() {}
 
   bool compile(const std::string& code, Chunk& chunk) {
-    auto parser = Parser(code, FLAGS_scanner, chunk, scope_);
-    return parser.run();
+    auto parser = Parser(code, FLAGS_scanner, scope_);
+    return parser.run(chunk);
   }
 
  private:

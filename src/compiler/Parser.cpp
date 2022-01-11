@@ -13,15 +13,16 @@ constexpr std::string_view kExpectSemicolon = "Expect ';' after statement.";
 
 namespace lox {
 namespace compiler {
-bool Parser::run() {
+
+bool Parser::run(Chunk& chunk) {
   try {
     while (!isAtEnd()) {
-      declaration(0);
+      declaration(chunk, 0);
     }
-    end();
+    end(chunk);
 
     if (FLAGS_debug && !hadError_) {
-      Disassembler::dis(chunk_, "Compiled chunk");
+      Disassembler::dis(chunk, "Compiled chunk");
     }
   } catch (ParseError& error) {
     hadError_ = true;
@@ -35,112 +36,112 @@ bool Parser::run() {
   return !hadError_;
 }
 
-void Parser::declaration(int depth) {
+void Parser::declaration(Chunk& chunk, int depth) {
   if (scanner_->match(Token::Type::VAR)) {
-    variableDeclaration(depth);
+    variableDeclaration(chunk, depth);
   } else {
-    statement(depth);
+    statement(chunk, depth);
   }
 }
 
-void Parser::end() { emitReturn(); }
+void Parser::end(Chunk& chunk) { emitReturn(chunk); }
 
-void Parser::variableDeclaration(int depth) {
+void Parser::variableDeclaration(Chunk& chunk, int depth) {
   const Token global = parseVariable("Expect variable name");
   declareVariable(global, depth);
 
   if (scanner_->match(Token::Type::EQUAL)) {
-    expression(depth);
+    expression(chunk, depth);
   } else {
-    chunk_.addCode(OpCode::NIL, global.line);
+    chunk.addCode(OpCode::NIL, global.line);
   }
 
-  defineVariable(global, depth);
+  defineVariable(chunk, global, depth);
   scanner_->consume(Token::Type::SEMICOLON, kExpectSemicolon);
 }
 
-void Parser::statement(int depth) {
+void Parser::statement(Chunk& chunk, int depth) {
   if (scanner_->match(Token::Type::PRINT)) {
-    printStatement(depth);
+    printStatement(chunk, depth);
   } else if (scanner_->match(Token::Type::WHILE)) {
-    whileStatement(depth);
+    whileStatement(chunk, depth);
   } else if (scanner_->match(Token::Type::FOR)) {
-    forStatement(depth);
+    forStatement(chunk, depth);
   } else if (scanner_->match(Token::Type::IF)) {
-    ifStatement(depth);
+    ifStatement(chunk, depth);
   } else if (scanner_->match(Token::Type::LEFT_BRACE)) {
     int scope = depth + 1;
     try {
       startScope(scope);
-      block(scope);
-      endScope(scope);
+      block(chunk, scope);
+      endScope(chunk, scope);
     } catch (ParseError& error) {
-      endScope(scope);
+      endScope(chunk, scope);
       throw error;
     }
   } else {
-    expressionStatement(depth);
+    expressionStatement(chunk, depth);
   }
 }
 
-void Parser::printStatement(int depth) {
+void Parser::printStatement(Chunk& chunk, int depth) {
   int line = scanner_->previous().line;
-  expression(depth);
-  chunk_.addCode(OpCode::PRINT, line);
-  chunk_.addCode(OpCode::POP, line);
+  expression(chunk, depth);
+  chunk.addCode(OpCode::PRINT, line);
+  chunk.addCode(OpCode::POP, line);
   scanner_->consume(Token::Type::SEMICOLON, kExpectSemicolon);
 }
 
-void Parser::block(int depth) {
+void Parser::block(Chunk& chunk, int depth) {
   while (!scanner_->check(Token::Type::RIGHT_BRACE)) {
-    declaration(depth);
+    declaration(chunk, depth);
   }
   scanner_->consume(Token::Type::RIGHT_BRACE, kExpectRightBrace);
 }
 
-void Parser::expressionStatement(int depth) {
-  expression(depth);
-  chunk_.addCode(OpCode::POP, scanner_->previous().line);
+void Parser::expressionStatement(Chunk& chunk, int depth) {
+  expression(chunk, depth);
+  chunk.addCode(OpCode::POP, scanner_->previous().line);
   scanner_->consume(Token::Type::SEMICOLON, kExpectSemicolon);
 }
 
-void Parser::ifStatement(int depth) {
+void Parser::ifStatement(Chunk& chunk, int depth) {
   int line = scanner_->previous().line;
   scanner_->consume(Token::Type::LEFT_PAREN, kExpectLeftParen);
-  expression(depth);
+  expression(chunk, depth);
   scanner_->consume(Token::Type::RIGHT_PAREN, kExpectRightParen);
 
-  int thenJump = emitJump(OpCode::JUMP_IF_FALSE, line);
-  chunk_.addCode(OpCode::POP, line);
-  statement(depth);
+  int thenJump = emitJump(chunk, OpCode::JUMP_IF_FALSE, line);
+  chunk.addCode(OpCode::POP, line);
+  statement(chunk, depth);
   line = scanner_->previous().line;
-  int elseJump = emitJump(OpCode::JUMP, line);
-  patchJump(thenJump);
-  chunk_.addCode(OpCode::POP, line);
+  int elseJump = emitJump(chunk, OpCode::JUMP, line);
+  patchJump(chunk, thenJump);
+  chunk.addCode(OpCode::POP, line);
 
   if (scanner_->match(Token::Type::ELSE)) {
-    statement(depth);
+    statement(chunk, depth);
   }
-  patchJump(elseJump);
+  patchJump(chunk, elseJump);
 }
 
-void Parser::whileStatement(int depth) {
+void Parser::whileStatement(Chunk& chunk, int depth) {
   int line = scanner_->previous().line;
-  int loopStart = chunk_.code.size();
+  int loopStart = chunk.code.size();
   scanner_->consume(Token::Type::LEFT_PAREN, kExpectLeftParen);
-  expression(depth);
+  expression(chunk, depth);
   scanner_->consume(Token::Type::RIGHT_PAREN, kExpectRightParen);
 
-  int exitJump = emitJump(OpCode::JUMP_IF_FALSE, line);
-  chunk_.addCode(OpCode::POP, line);
-  statement(depth);
-  emitLoop(loopStart, line);
+  int exitJump = emitJump(chunk, OpCode::JUMP_IF_FALSE, line);
+  chunk.addCode(OpCode::POP, line);
+  statement(chunk, depth);
+  emitLoop(chunk, loopStart, line);
 
-  patchJump(exitJump);
-  chunk_.addCode(OpCode::POP, line);
+  patchJump(chunk, exitJump);
+  chunk.addCode(OpCode::POP, line);
 }
 
-void Parser::forStatement(int depth) {
+void Parser::forStatement(Chunk& chunk, int depth) {
   int line = scanner_->previous().line;
   int scope = depth + 1;
   startScope(scope);
@@ -150,73 +151,73 @@ void Parser::forStatement(int depth) {
   if (scanner_->match(Token::Type::SEMICOLON)) {
     // nil
   } else if (scanner_->match(Token::Type::VAR)) {
-    variableDeclaration(scope);
+    variableDeclaration(chunk, scope);
   } else {
-    expressionStatement(scope);
+    expressionStatement(chunk, scope);
   }
-  int loopStart = chunk_.code.size();
+  int loopStart = chunk.code.size();
 
   // condition
   int exitJump = -1;
   if (!scanner_->match(Token::Type::SEMICOLON)) {
-    expression(scope);
+    expression(chunk, scope);
     scanner_->consume(Token::Type::SEMICOLON, kExpectSemicolon);
 
-    exitJump = emitJump(OpCode::JUMP_IF_FALSE, line);
-    chunk_.addCode(OpCode::POP, line);
+    exitJump = emitJump(chunk, OpCode::JUMP_IF_FALSE, line);
+    chunk.addCode(OpCode::POP, line);
   }
 
   // increment
   if (!scanner_->match(Token::Type::RIGHT_PAREN)) {
-    int bodyJump = emitJump(OpCode::JUMP, line);
+    int bodyJump = emitJump(chunk, OpCode::JUMP, line);
 
-    int incrementStart = chunk_.code.size();
-    expression(scope);
-    chunk_.addCode(OpCode::POP, line);
+    int incrementStart = chunk.code.size();
+    expression(chunk, scope);
+    chunk.addCode(OpCode::POP, line);
     scanner_->consume(Token::Type::RIGHT_PAREN, kExpectRightParen);
 
-    emitLoop(loopStart, line);
+    emitLoop(chunk, loopStart, line);
     loopStart = incrementStart;
-    patchJump(bodyJump);
+    patchJump(chunk, bodyJump);
   }
 
-  statement(scope);
+  statement(chunk, scope);
 
-  emitLoop(loopStart, line);
+  emitLoop(chunk, loopStart, line);
 
   if (exitJump != -1) {
-    patchJump(exitJump);
-    chunk_.addCode(OpCode::POP, line);
+    patchJump(chunk, exitJump);
+    chunk.addCode(OpCode::POP, line);
   }
-  endScope(scope);
+  endScope(chunk, scope);
 }
 
-void Parser::and_(int depth, bool canAssign) {
+void Parser::and_(Chunk& chunk, int depth, bool canAssign) {
   int line = scanner_->previous().line;
-  int endJump = emitJump(OpCode::JUMP_IF_FALSE, line);
-  chunk_.addCode(OpCode::POP, line);
-  parsePrecedence(depth, Precedence::AND);
-  patchJump(endJump);
+  int endJump = emitJump(chunk, OpCode::JUMP_IF_FALSE, line);
+  chunk.addCode(OpCode::POP, line);
+  parsePrecedence(chunk, depth, Precedence::AND);
+  patchJump(chunk, endJump);
 }
 
-void Parser::or_(int depth, bool canAssign) {
+void Parser::or_(Chunk& chunk, int depth, bool canAssign) {
   int line = scanner_->previous().line;
-  int elseJump = emitJump(OpCode::JUMP_IF_FALSE, line);
-  int endJump = emitJump(OpCode::JUMP, line);
-  patchJump(elseJump);
-  chunk_.addCode(OpCode::POP, line);
+  int elseJump = emitJump(chunk, OpCode::JUMP_IF_FALSE, line);
+  int endJump = emitJump(chunk, OpCode::JUMP, line);
+  patchJump(chunk, elseJump);
+  chunk.addCode(OpCode::POP, line);
 
-  parsePrecedence(depth, Precedence::OR);
-  patchJump(endJump);
+  parsePrecedence(chunk, depth, Precedence::OR);
+  patchJump(chunk, endJump);
 }
 
 void Parser::startScope(int depth) { scope_.push_scope(depth); }
 
-void Parser::endScope(int depth) {
+void Parser::endScope(Chunk& chunk, int depth) {
   auto removed_vars = scope_.pop_scope(depth);
   int line = scanner_->previous().line;
   while (removed_vars--) {
-    chunk_.addCode(OpCode::POP, line);
+    chunk.addCode(OpCode::POP, line);
   }
 }
 const Token& Parser::parseVariable(const std::string& error_message) {
@@ -230,129 +231,133 @@ void Parser::declareVariable(const Token& name, int depth) {
   scope_.declare(name, depth);
 }
 
-void Parser::defineVariable(const Token& name, int depth) {
+void Parser::defineVariable(Chunk& chunk, const Token& name, int depth) {
   if (depth > 0) {
     scope_.initialize(name, depth);
     return;
   }
-  emitConstant(name.lexeme, OpCode::DEFINE_GLOBAL, name.line);
+  emitConstant(chunk, name.lexeme, OpCode::DEFINE_GLOBAL, name.line);
 }
 
-void Parser::expression(int depth) {
-  parsePrecedence(depth, Precedence::ASSIGNMENT);
+void Parser::expression(Chunk& chunk, int depth) {
+  parsePrecedence(chunk, depth, Precedence::ASSIGNMENT);
 }
 
-void Parser::grouping(int depth, bool canAssign) {
-  expression(depth);
+void Parser::grouping(Chunk& chunk, int depth, bool canAssign) {
+  expression(chunk, depth);
   scanner_->consume(Token::Type::RIGHT_PAREN, std::string{kExpectRightParen});
 }
 
-void Parser::unary(int depth, bool canAssign) {
+void Parser::unary(Chunk& chunk, int depth, bool canAssign) {
   const Token& op = scanner_->previous();
-  parsePrecedence(depth, Precedence::UNARY);
+  parsePrecedence(chunk, depth, Precedence::UNARY);
   switch (op.type) {
     case Token::Type::MINUS:
-      chunk_.addCode(OpCode::NEGATE, op.line);
+      chunk.addCode(OpCode::NEGATE, op.line);
       break;
     case Token::Type::BANG:
-      chunk_.addCode(OpCode::NOT, op.line);
+      chunk.addCode(OpCode::NOT, op.line);
       break;
     default:
       return;  // Unreachable
   }
 }
-void Parser::binary(int depth, bool canAssign) {
+void Parser::binary(Chunk& chunk, int depth, bool canAssign) {
   const Token& op = scanner_->previous();
   const auto rule = getRule(op);
-  parsePrecedence(depth, (Precedence)(static_cast<int>(rule.precedence) + 1));
+  parsePrecedence(chunk, depth,
+                  (Precedence)(static_cast<int>(rule.precedence) + 1));
 
   switch (op.type) {
     case Token::Type::PLUS:
-      chunk_.addCode(OpCode::ADD, op.line);
+      chunk.addCode(OpCode::ADD, op.line);
       break;
     case Token::Type::MINUS:
-      chunk_.addCode(OpCode::SUBSTRACT, op.line);
+      chunk.addCode(OpCode::SUBSTRACT, op.line);
       break;
     case Token::Type::STAR:
-      chunk_.addCode(OpCode::MULTIPLY, op.line);
+      chunk.addCode(OpCode::MULTIPLY, op.line);
       break;
     case Token::Type::SLASH:
-      chunk_.addCode(OpCode::DIVIDE, op.line);
+      chunk.addCode(OpCode::DIVIDE, op.line);
       break;
     case Token::Type::GREATER:
-      chunk_.addCode(OpCode::GREATER, op.line);
+      chunk.addCode(OpCode::GREATER, op.line);
       break;
     case Token::Type::LESS:
-      chunk_.addCode(OpCode::LESS, op.line);
+      chunk.addCode(OpCode::LESS, op.line);
       break;
     case Token::Type::BANG_EQUAL:
-      chunk_.addCode(OpCode::NOT_EQUAL, op.line);
+      chunk.addCode(OpCode::NOT_EQUAL, op.line);
       break;
     case Token::Type::EQUAL_EQUAL:
-      chunk_.addCode(OpCode::EQUAL, op.line);
+      chunk.addCode(OpCode::EQUAL, op.line);
       break;
     case Token::Type::GREATER_EQUAL:
-      chunk_.addCode(OpCode::GREATER_EQUAL, op.line);
+      chunk.addCode(OpCode::GREATER_EQUAL, op.line);
       break;
     case Token::Type::LESS_EQUAL:
-      chunk_.addCode(OpCode::LESS_EQUAL, op.line);
+      chunk.addCode(OpCode::LESS_EQUAL, op.line);
       break;
     default:
       return;  // Unreachable
   }
 }
 
-void Parser::number(int depth, bool canAssign) {
+void Parser::number(Chunk& chunk, int depth, bool canAssign) {
   double number = atof(scanner_->previous().lexeme.c_str());
-  emitConstant(number, OpCode::CONSTANT, scanner_->previous().line);
+  emitConstant(chunk, number, OpCode::CONSTANT, scanner_->previous().line);
 }
 
-void Parser::string(int depth, bool canAssign) {
-  emitConstant(scanner_->previous().lexeme, OpCode::CONSTANT,
+void Parser::string(Chunk& chunk, int depth, bool canAssign) {
+  emitConstant(chunk, scanner_->previous().lexeme, OpCode::CONSTANT,
                scanner_->previous().line);
 }
 
-void Parser::literal(int depth, bool canAssign) {
+void Parser::literal(Chunk& chunk, int depth, bool canAssign) {
   switch (scanner_->previous().type) {
     case Token::Type::FALSE:
-      chunk_.addCode(OpCode::FALSE, scanner_->previous().line);
+      chunk.addCode(OpCode::FALSE, scanner_->previous().line);
       break;
     case Token::Type::TRUE:
-      chunk_.addCode(OpCode::TRUE, scanner_->previous().line);
+      chunk.addCode(OpCode::TRUE, scanner_->previous().line);
       break;
     case Token::Type::NIL:
-      chunk_.addCode(OpCode::NIL, scanner_->previous().line);
+      chunk.addCode(OpCode::NIL, scanner_->previous().line);
       break;
     default:
       return;  // Unreachable
   }
 }
-void Parser::variable(int depth, bool canAssign) {
-  namedVariable(scanner_->previous(), canAssign, depth);
+
+void Parser::variable(Chunk& chunk, int depth, bool canAssign) {
+  namedVariable(chunk, scanner_->previous(), canAssign, depth);
 }
 
-void Parser::namedVariable(const Token& token, bool canAssign, int depth) {
+void Parser::namedVariable(Chunk& chunk, const Token& token, bool canAssign,
+                           int depth) {
   int offset = resolveLocal(token);
 
   if (canAssign && scanner_->match(Token::Type::EQUAL)) {
-    expression(depth);
+    expression(chunk, depth);
     if (offset != -1) {
-      chunk_.addCode(OpCode::SET_LOCAL, token.line);
-      chunk_.addOperand(static_cast<uint8_t>(offset));
+      chunk.addCode(OpCode::SET_LOCAL, token.line);
+      chunk.addOperand(static_cast<uint8_t>(offset));
     } else {
-      emitConstant(token.lexeme, OpCode::SET_GLOBAL, token.line);
+      emitConstant(chunk, token.lexeme, OpCode::SET_GLOBAL, token.line);
     }
   } else {
     if (offset != -1) {
-      chunk_.addCode(OpCode::GET_LOCAL, token.line);
-      chunk_.addOperand(static_cast<uint8_t>(offset));
+      chunk.addCode(OpCode::GET_LOCAL, token.line);
+      chunk.addOperand(static_cast<uint8_t>(offset));
     } else {
-      emitConstant(token.lexeme, OpCode::GET_GLOBAL, token.line);
+      emitConstant(chunk, token.lexeme, OpCode::GET_GLOBAL, token.line);
     }
   }
 }
 
-void Parser::parsePrecedence(int depth, const Precedence& precedence) {
+void Parser::parsePrecedence(Chunk& chunk, int depth,
+                             const Precedence& precedence) {
   scanner_->advance();
   const auto rule = getRule(scanner_->previous());
   if (rule.prefix == nullptr) {
@@ -361,16 +366,16 @@ void Parser::parsePrecedence(int depth, const Precedence& precedence) {
   }
 
   bool canAssign = precedence <= Precedence::ASSIGNMENT;
-  rule.prefix(depth, canAssign);
+  rule.prefix(chunk, depth, canAssign);
 
-  while (precedence <= getRule(current()).precedence) {
+  while (precedence <= getRule(scanner_->current()).precedence) {
     scanner_->advance();
     const auto infixRule = getRule(scanner_->previous());
     if (infixRule.infix == nullptr) {
       parse_error(scanner_->previous(), "Expected infix expression.");
       return;
     }
-    infixRule.infix(depth, canAssign);
+    infixRule.infix(chunk, depth, canAssign);
   }
 }
 }  // namespace compiler

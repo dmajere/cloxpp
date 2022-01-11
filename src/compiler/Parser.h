@@ -25,98 +25,93 @@ enum class Precedence {
 };
 
 struct ParseRule {
-  std::function<void(int depth, bool canAssign)> prefix;
-  std::function<void(int depth, bool canAssign)> infix;
+  std::function<void(Chunk& chunk, int depth, bool canAssign)> prefix;
+  std::function<void(Chunk& chunk, int depth, bool canAssign)> infix;
   const Precedence precedence;
 };
 
 class Parser {
  public:
-  Parser(const std::string& source, const std::string& scanner, Chunk& chunk,
-         Scope& scope)
-      : scanner_{ScannerFactory::get(scanner)(source)},
-        // scanner_{std::make_unique<ReadByOneScanner>(source)},
-        chunk_{chunk},
-        scope_{scope} {}
+  Parser(const std::string& source, const std::string& scanner, Scope& scope)
+      : scanner_{ScannerFactory::get(scanner)(source)}, scope_{scope} {}
 
-  bool run();
+  bool run(Chunk& chunk);
 
  private:
   std::unique_ptr<Scanner> scanner_;
-  Chunk& chunk_;
   Scope& scope_;
   bool hadError_{false};
 
-  inline const Token& current() const { return scanner_->current(); }
-  inline const Token& previous() const { return scanner_->previous(); }
-  inline const Token& advance() { return scanner_->advance(); }
   inline bool isAtEnd() const {
     return scanner_->current().type == Token::Type::END;
   }
 
-  void declaration(int depth);
-  void end();
-  void variableDeclaration(int depth);
-  void statement(int depth);
-  void printStatement(int depth);
-  void block(int depth);
-  void expressionStatement(int depth);
-  void ifStatement(int depth);
-  void whileStatement(int depth);
-  void forStatement(int depth);
-  void expression(int depth);
-  void grouping(int depth, bool canAssign);
-  void unary(int depth, bool canAssign);
-  void binary(int depth, bool canAssign);
-  void number(int depth, bool canAssign);
-  void string(int depth, bool canAssign);
-  void literal(int depth, bool canAssign);
-  void variable(int depth, bool canAssign);
-  void and_(int depth, bool canAssign);
-  void or_(int depth, bool canAssign);
+  void declaration(Chunk& chunk, int depth);
+  void end(Chunk& chunk);
+  void variableDeclaration(Chunk& chunk, int depth);
+  void statement(Chunk& chunk, int depth);
+  void printStatement(Chunk& chunk, int depth);
+  void block(Chunk& chunk, int depth);
+  void expressionStatement(Chunk& chunk, int depth);
+  void ifStatement(Chunk& chunk, int depth);
+  void whileStatement(Chunk& chunk, int depth);
+  void forStatement(Chunk& chunk, int depth);
+  void expression(Chunk& chunk, int depth);
+  void grouping(Chunk& chunk, int depth, bool canAssign);
+  void unary(Chunk& chunk, int depth, bool canAssign);
+  void binary(Chunk& chunk, int depth, bool canAssign);
+  void number(Chunk& chunk, int depth, bool canAssign);
+  void string(Chunk& chunk, int depth, bool canAssign);
+  void literal(Chunk& chunk, int depth, bool canAssign);
+  void variable(Chunk& chunk, int depth, bool canAssign);
+  void and_(Chunk& chunk, int depth, bool canAssign);
+  void or_(Chunk& chunk, int depth, bool canAssign);
 
   const Token& parseVariable(const std::string& error_message);
   void declareVariable(const Token& name, int depth);
-  void defineVariable(const Token& name, int depth);
-  void namedVariable(const Token& token, bool canAssign, int depth);
+  void defineVariable(Chunk& chunk, const Token& name, int depth);
+  void namedVariable(Chunk& chunk, const Token& token, bool canAssign,
+                     int depth);
   inline size_t resolveLocal(const Token& name) { return scope_.find(name); }
 
-  void parsePrecedence(int depth, const Precedence& precedence);
+  void parsePrecedence(Chunk& chunk, int depth, const Precedence& precedence);
   void startScope(int depth);
-  void endScope(int depth);
+  void endScope(Chunk& chunk, int depth);
 
-  inline void emitReturn() { chunk_.addCode(OpCode::RETURN, previous().line); }
-  inline void emitConstant(const Value& constant, const OpCode& code,
-                           int line) {
-    auto offset = chunk_.addConstant(constant);
-    chunk_.addCode(code, line);
-    chunk_.addOperand(offset);
+  inline void emitReturn(Chunk& chunk) {
+    chunk.addCode(OpCode::RETURN, scanner_->previous().line);
   }
-  inline int emitJump(const OpCode& code, int line) {
-    chunk_.addCode(code, line);
-    chunk_.addOperand(0xff);
-    chunk_.addOperand(0xff);
-    return chunk_.code.size() - 2;
+  inline void emitConstant(Chunk& chunk, const Value& constant,
+                           const OpCode& code, int line) {
+    auto offset = chunk.addConstant(constant);
+    chunk.addCode(code, line);
+    chunk.addOperand(offset);
   }
-  inline void patchJump(int offset) {
-    int jump = chunk_.code.size() - offset - 2;
+  inline int emitJump(Chunk& chunk, const OpCode& code, int line) {
+    chunk.addCode(code, line);
+    chunk.addOperand(0xff);
+    chunk.addOperand(0xff);
+    return chunk.code.size() - 2;
+  }
+  inline void patchJump(Chunk& chunk, int offset) {
+    int jump = chunk.code.size() - offset - 2;
 
     if (jump > std::numeric_limits<uint16_t>::max()) {
       parse_error(scanner_->previous(), "loop body too large");
     }
 
-    chunk_.code[offset] = (jump >> 8) & 0xff;
-    chunk_.code[offset + 1] = jump & 0xff;
+    chunk.code[offset] = (jump >> 8) & 0xff;
+    chunk.code[offset + 1] = jump & 0xff;
   }
 
-  inline void emitLoop(int loopStart, int line) {
-    chunk_.addCode(OpCode::LOOP, line);
-    int offset = chunk_.code.size() - loopStart + 2;
+  inline void emitLoop(Chunk& chunk, int loopStart, int line) {
+    chunk.addCode(OpCode::LOOP, line);
+    int offset = chunk.code.size() - loopStart + 2;
     if (offset > std::numeric_limits<uint16_t>::max()) {
       parse_error(scanner_->previous(), "loop body too large");
     }
-    chunk_.addOperand((offset >> 8) & 0xff);
-    chunk_.addOperand(offset & 0xff);
+    chunk.addOperand((offset >> 8) & 0xff);
+    chunk.addOperand(offset & 0xff);
   }
 
   static inline void parse_error(const Token& token,
@@ -128,32 +123,32 @@ class Parser {
   }
 
   const ParseRule& getRule(const Token& token) {
-    auto grouping = [this](int depth, bool canAssign) {
-      this->grouping(depth, canAssign);
+    auto grouping = [this](Chunk& chunk, int depth, bool canAssign) {
+      this->grouping(chunk, depth, canAssign);
     };
-    auto unary = [this](int depth, bool canAssign) {
-      this->unary(depth, canAssign);
+    auto unary = [this](Chunk& chunk, int depth, bool canAssign) {
+      this->unary(chunk, depth, canAssign);
     };
-    auto binary = [this](int depth, bool canAssign) {
-      this->binary(depth, canAssign);
+    auto binary = [this](Chunk& chunk, int depth, bool canAssign) {
+      this->binary(chunk, depth, canAssign);
     };
-    auto number = [this](int depth, bool canAssign) {
-      this->number(depth, canAssign);
+    auto number = [this](Chunk& chunk, int depth, bool canAssign) {
+      this->number(chunk, depth, canAssign);
     };
-    auto literal = [this](int depth, bool canAssign) {
-      this->literal(depth, canAssign);
+    auto literal = [this](Chunk& chunk, int depth, bool canAssign) {
+      this->literal(chunk, depth, canAssign);
     };
-    auto string = [this](int depth, bool canAssign) {
-      this->string(depth, canAssign);
+    auto string = [this](Chunk& chunk, int depth, bool canAssign) {
+      this->string(chunk, depth, canAssign);
     };
-    auto variable = [this](int depth, bool canAssign) {
-      this->variable(depth, canAssign);
+    auto variable = [this](Chunk& chunk, int depth, bool canAssign) {
+      this->variable(chunk, depth, canAssign);
     };
-    auto and_ = [this](int depth, bool canAssign) {
-      this->and_(depth, canAssign);
+    auto and_ = [this](Chunk& chunk, int depth, bool canAssign) {
+      this->and_(chunk, depth, canAssign);
     };
-    auto or_ = [this](int depth, bool canAssign) {
-      this->or_(depth, canAssign);
+    auto or_ = [this](Chunk& chunk, int depth, bool canAssign) {
+      this->or_(chunk, depth, canAssign);
     };
 
     static const std::vector<ParseRule> rules = {
