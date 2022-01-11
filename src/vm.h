@@ -188,6 +188,14 @@ class VM {
                     stack->popTwoAndPush(a + b);
                     return true;
                   },
+                  [stack](const std::string& a, const double& b) -> bool {
+                    stack->popTwoAndPush(a + std::to_string(b));
+                    return true;
+                  },
+                  [stack](const double& a, const std::string& b) -> bool {
+                    stack->popTwoAndPush(std::to_string(a) + b);
+                    return true;
+                  },
                   [stack](auto& a, auto& b) -> bool { return false; },
               },
               stack_.peek(1), stack_.peek(0));

@@ -54,6 +54,7 @@ void Parser::variableDeclaration(int depth) {
   } else {
     chunk_.addCode(OpCode::NIL, global.line);
   }
+
   defineVariable(global, depth);
   scanner_->consume(Token::Type::SEMICOLON, kExpectSemicolon);
 }
@@ -68,11 +69,13 @@ void Parser::statement(int depth) {
   } else if (scanner_->match(Token::Type::IF)) {
     ifStatement(depth);
   } else if (scanner_->match(Token::Type::LEFT_BRACE)) {
+    int scope = depth + 1;
     try {
-      block(depth + 1);
-      endScope();
+      startScope(scope);
+      block(scope);
+      endScope(scope);
     } catch (ParseError& error) {
-      endScope();
+      endScope(scope);
       throw error;
     }
   } else {
@@ -84,6 +87,7 @@ void Parser::printStatement(int depth) {
   int line = scanner_->previous().line;
   expression(depth);
   chunk_.addCode(OpCode::PRINT, line);
+  chunk_.addCode(OpCode::POP, line);
   scanner_->consume(Token::Type::SEMICOLON, kExpectSemicolon);
 }
 
@@ -139,6 +143,7 @@ void Parser::whileStatement(int depth) {
 void Parser::forStatement(int depth) {
   int line = scanner_->previous().line;
   int scope = depth + 1;
+  startScope(scope);
   scanner_->consume(Token::Type::LEFT_PAREN, kExpectLeftParen);
 
   // init
@@ -183,7 +188,7 @@ void Parser::forStatement(int depth) {
     patchJump(exitJump);
     chunk_.addCode(OpCode::POP, line);
   }
-  endScope();
+  endScope(scope);
 }
 
 void Parser::and_(int depth, bool canAssign) {
@@ -205,8 +210,10 @@ void Parser::or_(int depth, bool canAssign) {
   patchJump(endJump);
 }
 
-void Parser::endScope() {
-  auto removed_vars = scope_.pop_scope();
+void Parser::startScope(int depth) { scope_.push_scope(depth); }
+
+void Parser::endScope(int depth) {
+  auto removed_vars = scope_.pop_scope(depth);
   int line = scanner_->previous().line;
   while (removed_vars--) {
     chunk_.addCode(OpCode::POP, line);
@@ -217,12 +224,14 @@ const Token& Parser::parseVariable(const std::string& error_message) {
 }
 
 void Parser::declareVariable(const Token& name, int depth) {
-  if (depth == 0) return;
+  if (depth == 0) {
+    return;
+  }
   scope_.declare(name, depth);
 }
 
 void Parser::defineVariable(const Token& name, int depth) {
-  if (scope_.depth() > 0) {
+  if (depth > 0) {
     scope_.initialize(name, depth);
     return;
   }

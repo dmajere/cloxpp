@@ -82,7 +82,8 @@ class Parser {
   inline size_t resolveLocal(const Token& name) { return scope_.find(name); }
 
   void parsePrecedence(int depth, const Precedence& precedence);
-  void endScope();
+  void startScope(int depth);
+  void endScope(int depth);
 
   inline void emitReturn() { chunk_.addCode(OpCode::RETURN, previous().line); }
   inline void emitConstant(const Value& constant, const OpCode& code,

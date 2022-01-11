@@ -87,10 +87,12 @@ class Disassembler {
         break;
       case OpCode::GET_LOCAL:
         std::cout << "GET_LOCAL '";
+        value(chunk.constants[chunk.code[++offset]]);
         std::cout << "'";
         break;
       case OpCode::SET_LOCAL:
         std::cout << "SET_LOCAL '";
+        value(chunk.constants[chunk.code[++offset]]);
         std::cout << "'";
         break;
       case OpCode::ADD:

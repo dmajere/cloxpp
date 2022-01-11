@@ -39,6 +39,7 @@ class Lox {
       std::cout << kLoxInputPrompt;
     }
   }
+
   void runFile(const std::string& path) {
     auto f = folly::File(path);
     std::string code;

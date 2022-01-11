@@ -25,9 +25,6 @@ class Scope {
   void declare(const Token& name, int depth) {
     int position;
 
-    if (depth == locals_.size()) {
-      locals_.push_back({});
-    }
     auto& scope = locals_.back();
     if (!scope.empty()) {
       position = scope.back().position + 1;
@@ -49,7 +46,13 @@ class Scope {
     }
   }
 
-  size_t pop_scope() {
+  void push_scope(int depth) {
+    while (depth >= locals_.size()) {
+      locals_.push_back({});
+    }
+  }
+
+  size_t pop_scope(int depth) {
     auto size = locals_.back().size();
     locals_.pop_back();
     return size;

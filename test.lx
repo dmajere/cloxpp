@@ -1,0 +1,14 @@
+var a = 1;
+var b = 2;
+var c = a + b - 3 * 4 / 5;
+print c;
+
+var truthy = true;
+var cond;
+if (truthy) { cond = "defined"; }
+print cond;
+
+var counter = 1;
+while (counter < 5) {counter = counter + 1; print "while " + counter;}
+
+for (var idx = 0; idx < 3; idx = idx + 1 ) { print "for " + idx;}
