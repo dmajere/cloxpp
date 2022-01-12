@@ -53,6 +53,10 @@ class Disassembler {
         offset++;
         break;
       }
+      case OpCode::CALL:
+        std::cout << "CALL";
+        offset++;
+        break;
       case OpCode::RETURN:
         std::cout << "RETURN";
         break;

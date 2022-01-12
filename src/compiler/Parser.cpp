@@ -23,9 +23,9 @@ Function Parser::run() {
     }
     end(*chunk);
 
-    if (FLAGS_debug && !hadError_) {
-      Disassembler::dis(*chunk, "Compiled chunk");
-    }
+    // if (FLAGS_debug && !hadError_) {
+    //   Disassembler::dis(*chunk, "Compiled chunk");
+    // }
   } catch (ParseError& error) {
     hadError_ = true;
     std::cout << error.what();
@@ -95,6 +95,7 @@ void Parser::function(Chunk& chunk, const std::string& name, int depth) {
 
   scanner_->consume(Token::Type::LEFT_BRACE, kExpectLeftBrace);
   block(*function_chunk, scope);
+  emitReturn(*function_chunk);
 
   Function func =
       std::make_shared<FunctionObject>(arity, name, std::move(function_chunk));
@@ -105,6 +106,7 @@ void Parser::function(Chunk& chunk, const std::string& name, int depth) {
 void Parser::call(Chunk& chunk, int depth, bool canAssign) {
   uint8_t argCount = argumentList(chunk, depth);
   chunk.addCode(OpCode::CALL, scanner_->previous().line);
+  chunk.addOperand(0);
 }
 
 uint8_t Parser::argumentList(Chunk& chunk, int depth) {

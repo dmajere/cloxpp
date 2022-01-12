@@ -14,6 +14,7 @@
 #include "compiler/Value.h"
 #include "compiler/debug.h"
 
+DECLARE_bool(debug);
 DECLARE_bool(debug_stack);
 #define FRAMES_MAX 64
 
@@ -65,12 +66,6 @@ class VM {
 
   InterpretResult interpret(lox::compiler::Chunk& chunk) { return run(chunk); }
 
- private:
-  std::unique_ptr<Compiler> compiler_;
-  Stack stack_;
-  std::unordered_map<std::string, Value> globals_;
-  std::vector<CallFrame> frames_;
-
   bool call(const Function& function, int argCount) {
     if (argCount != function->arity()) {
       runtimeError("Function arity mismatch");
@@ -82,9 +77,46 @@ class VM {
       return false;
     }
 
+    if (FLAGS_debug) {
+      Disassembler::dis(function->chunk(), function->name());
+    }
+
     unsigned long offset = stack_.size() - argCount - 1;
     frames_.emplace_back(CallFrame(0, offset, function));
     return true;
+  }
+
+  void runtimeError(const std::string& message) {
+    // int line = ip_ - chunk_.code.end() - 1;
+    std::cout << "RuntimeError: " << message << "\n";
+    // resetStack();
+    throw std::runtime_error("error");
+  }
+
+ private:
+  std::unique_ptr<Compiler> compiler_;
+  Stack stack_;
+  std::unordered_map<std::string, Value> globals_;
+  std::vector<CallFrame> frames_;
+
+  struct CallVisitor {
+    const int argCount;
+    VM* vm;
+
+    CallVisitor(int argCount, VM* vm) : argCount(argCount), vm(vm) {}
+
+    bool operator()(const Function& func) const {
+      return vm->call(func, argCount);
+    }
+
+    template <typename T>
+    bool operator()(const T& value) const {
+      vm->runtimeError("Can only call functions and classes.");
+      return false;
+    }
+  };
+  bool callValue(const Value& callee, int argCount) {
+    return std::visit(CallVisitor(argCount, this), callee);
   }
 
   InterpretResult run(Chunk& chunk) {
@@ -133,6 +165,13 @@ class VM {
   } while (false)
 
       switch (static_cast<OpCode>(op)) {
+        case OpCode::CALL: {
+          int argCount = read_byte();
+          if (!callValue(stack_.peek(argCount), argCount)) {
+            return InterpretResult::RUNTIME_ERROR;
+          }
+          break;
+        }
         case OpCode::LOOP: {
           uint16_t offset = read_short();
           this->frames_.back().ip -= offset;
@@ -151,7 +190,15 @@ class VM {
           break;
         }
         case OpCode::RETURN: {
-          return InterpretResult::OK;
+          frames_.pop_back();
+          auto lastOffset = frames_.back().stackOffset;
+
+          if (frames_.empty()) {
+            stack_.pop();
+            return InterpretResult::OK;
+          }
+
+          break;
         }
         case OpCode::PRINT: {
           std::cout << "[Out]: ";
@@ -306,13 +353,6 @@ class VM {
     }
     return InterpretResult::COMPILE_ERROR;
 #undef BINARY_OP
-  }
-
-  void runtimeError(const std::string& message) {
-    // int line = ip_ - chunk_.code.end() - 1;
-    std::cout << "RuntimeError: " << message << "\n";
-    // resetStack();
-    throw std::runtime_error("error");
   }
 
   inline void binary_op(std::function<Value(double, double)> op) {
