@@ -8,6 +8,7 @@
 DECLARE_bool(debug);
 constexpr std::string_view kExpectLeftParen = "Expect '(' after expression.";
 constexpr std::string_view kExpectRightParen = "Expect ')' after expression.";
+constexpr std::string_view kExpectLeftBrace = "Expect '{' after expression.";
 constexpr std::string_view kExpectRightBrace = "Expect '}' after expression.";
 constexpr std::string_view kExpectSemicolon = "Expect ';' after statement.";
 
@@ -39,6 +40,8 @@ bool Parser::run(Chunk& chunk) {
 void Parser::declaration(Chunk& chunk, int depth) {
   if (scanner_->match(Token::Type::VAR)) {
     variableDeclaration(chunk, depth);
+  } else if (scanner_->match(Token::Type::FUN)) {
+    functionDeclaration(chunk, depth);
   } else {
     statement(chunk, depth);
   }
@@ -58,6 +61,65 @@ void Parser::variableDeclaration(Chunk& chunk, int depth) {
 
   defineVariable(chunk, global, depth);
   scanner_->consume(Token::Type::SEMICOLON, kExpectSemicolon);
+}
+
+void Parser::functionDeclaration(Chunk& chunk, int depth) {
+  const Token global = parseVariable("Expect variable name");
+  declareVariable(global, depth);
+  function(chunk, global.lexeme, depth);
+  defineVariable(chunk, global, depth);
+}
+
+void Parser::function(Chunk& chunk, const std::string& name, int depth) {
+  int line = scanner_->previous().line;
+  auto function_chunk = std::make_unique<Chunk>();
+  int scope = depth + 1;
+
+  startScope(scope);
+
+  scanner_->consume(Token::Type::LEFT_PAREN, kExpectLeftParen);
+  int arity = 0;
+  if (!scanner_->check(Token::Type::RIGHT_PAREN)) {
+    do {
+      arity++;
+      if (arity > 255) {
+        parse_error(scanner_->current(),
+                    "Function can't have more than 255 parameter");
+      }
+      auto constant = parseVariable("expect parameter name");
+      defineVariable(*function_chunk, constant, scope);
+    } while (scanner_->match(Token::Type::COMMA));
+  }
+  scanner_->consume(Token::Type::RIGHT_PAREN, kExpectRightParen);
+
+  scanner_->consume(Token::Type::LEFT_BRACE, kExpectLeftBrace);
+  block(*function_chunk, scope);
+
+  Function func =
+      std::make_shared<FunctionObject>(arity, name, std::move(function_chunk));
+
+  emitConstant(chunk, func, OpCode::CONSTANT, line);
+  endScope(chunk, scope);
+}
+void Parser::call(Chunk& chunk, int depth, bool canAssign) {
+  uint8_t argCount = argumentList(chunk, depth);
+  chunk.addCode(OpCode::CALL, scanner_->previous().line);
+}
+
+uint8_t Parser::argumentList(Chunk& chunk, int depth) {
+  uint8_t count = 0;
+  if (!scanner_->check(Token::Type::RIGHT_PAREN)) {
+    do {
+      expression(chunk, depth);
+      count++;
+      if (count == 255) {
+        parse_error(scanner_->current(),
+                    "Function cant have more than 255 arguments");
+      }
+    } while (scanner_->match(Token::Type::COMMA));
+  }
+  scanner_->consume(Token::Type::RIGHT_PAREN, kExpectRightParen);
+  return count;
 }
 
 void Parser::statement(Chunk& chunk, int depth) {

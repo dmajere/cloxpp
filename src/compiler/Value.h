@@ -24,8 +24,9 @@ class FunctionObject {
   std::unique_ptr<Chunk> chunk_;
 
  public:
-  FunctionObject(int arity, const std::string& name)
-      : arity_{arity}, name_(name) {}
+  FunctionObject(int arity, const std::string& name,
+                 std::unique_ptr<Chunk> chunk)
+      : arity_{arity}, name_(name), chunk_(std::move(chunk)) {}
 
   const std::string& name() const { return name_; }
   const int arity() const { return arity_; }

@@ -49,6 +49,7 @@ class Parser {
   void declaration(Chunk& chunk, int depth);
   void end(Chunk& chunk);
   void variableDeclaration(Chunk& chunk, int depth);
+  void functionDeclaration(Chunk& chunk, int depth);
   void statement(Chunk& chunk, int depth);
   void printStatement(Chunk& chunk, int depth);
   void block(Chunk& chunk, int depth);
@@ -57,6 +58,7 @@ class Parser {
   void whileStatement(Chunk& chunk, int depth);
   void forStatement(Chunk& chunk, int depth);
   void expression(Chunk& chunk, int depth);
+  void function(Chunk& chunk, const std::string& name, int depth);
   void grouping(Chunk& chunk, int depth, bool canAssign);
   void unary(Chunk& chunk, int depth, bool canAssign);
   void binary(Chunk& chunk, int depth, bool canAssign);
@@ -66,6 +68,7 @@ class Parser {
   void variable(Chunk& chunk, int depth, bool canAssign);
   void and_(Chunk& chunk, int depth, bool canAssign);
   void or_(Chunk& chunk, int depth, bool canAssign);
+  void call(Chunk& chunk, int depth, bool canAssign);
 
   const Token& parseVariable(const std::string& error_message);
   void declareVariable(const Token& name, int depth);
@@ -73,6 +76,7 @@ class Parser {
   void namedVariable(Chunk& chunk, const Token& token, bool canAssign,
                      int depth);
   inline size_t resolveLocal(const Token& name) { return scope_.find(name); }
+  uint8_t argumentList(Chunk& chunk, int depth);
 
   void parsePrecedence(Chunk& chunk, int depth, const Precedence& precedence);
   void startScope(int depth);
@@ -150,9 +154,12 @@ class Parser {
     auto or_ = [this](Chunk& chunk, int depth, bool canAssign) {
       this->or_(chunk, depth, canAssign);
     };
+    auto call = [this](Chunk& chunk, int depth, bool canAssign) {
+      this->call(chunk, depth, canAssign);
+    };
 
     static const std::vector<ParseRule> rules = {
-        {grouping, nullptr, Precedence::NONE},      // LEFT_PAREN
+        {grouping, call, Precedence::CALL},         // LEFT_PAREN
         {nullptr, nullptr, Precedence::NONE},       // RIGHT_PAREN
         {nullptr, nullptr, Precedence::NONE},       // LEFT_BRACE
         {nullptr, nullptr, Precedence::NONE},       // RIGHT_BRACE

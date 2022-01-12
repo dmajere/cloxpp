@@ -39,6 +39,7 @@ enum class OpCode {
   JUMP_IF_FALSE,
   JUMP,
   LOOP,
+  CALL,
 };
 
 struct Chunk {

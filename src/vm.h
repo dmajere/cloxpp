@@ -28,6 +28,11 @@ overloaded(Ts...) -> overloaded<Ts...>;
 namespace lox {
 namespace lang {
 
+struct CallFrame {
+  int ip;
+  unsigned long stackOffset;
+};
+
 class VM {
  public:
   enum class InterpretResult { OK, COMPILE_ERROR, RUNTIME_ERROR };
@@ -38,10 +43,8 @@ class VM {
   InterpretResult interpret(const std::string& code) {
     lox::compiler::Chunk chunk;
     if (compiler_->compile(code, chunk)) {
-      chunk_ = std::move(chunk);
-      ip_ = chunk_.code.begin();
       try {
-        auto interpret_result = run();
+        auto interpret_result = run(chunk);
         return interpret_result;
       } catch (std::runtime_error&) {
         return InterpretResult::RUNTIME_ERROR;
@@ -51,20 +54,31 @@ class VM {
     }
   }
 
-  InterpretResult interpret(const lox::compiler::Chunk& chunk) {
-    this->chunk_ = std::move(chunk);
-    this->ip_ = chunk_.code.begin();
-    return run();
-  }
+  InterpretResult interpret(lox::compiler::Chunk& chunk) { return run(chunk); }
 
  private:
   std::unique_ptr<Compiler> compiler_;
-  lox::compiler::Chunk chunk_;
-  std::vector<uint8_t>::iterator ip_;
   Stack stack_;
   std::unordered_map<std::string, Value> globals_;
+  std::vector<CallFrame> frames_;
 
-  InterpretResult run() {
+  InterpretResult run(Chunk& chunk) {
+    int ip_ = 0;
+
+    auto read_byte = [&chunk, &ip_]() -> uint8_t {
+      return chunk.code.at(ip_++);
+    };
+    auto read_short = [&chunk, &ip_]() -> uint16_t {
+      ip_ += 2;
+      return (uint16_t)(chunk.code.at(ip_ - 2) << 8 | chunk.code.at(ip_ - 1));
+    };
+    auto read_constant = [&chunk, &ip_]() -> Value {
+      return chunk.constants[chunk.code.at(ip_++)];
+    };
+    auto read_string = [&read_constant]() -> std::string {
+      return std::get<std::string>(read_constant());
+    };
+
     for (;;) {
       const uint8_t op = read_byte();
 
@@ -120,6 +134,7 @@ class VM {
           if (it != globals_.end()) {
             runtimeError("Variable already defined");
           }
+
           globals_.insert({std::move(name), std::move(stack_.peek(0))});
           stack_.pop();
           break;
@@ -263,20 +278,10 @@ class VM {
   }
 
   void runtimeError(const std::string& message) {
-    int line = ip_ - chunk_.code.end() - 1;
-    std::cout << "RuntimeError: " << message << " at line " << line << "\n";
+    // int line = ip_ - chunk_.code.end() - 1;
+    std::cout << "RuntimeError: " << message << "\n";
     // resetStack();
     throw std::runtime_error("error");
-  }
-
-  inline uint8_t read_byte() { return (*ip_++); }
-  inline uint16_t read_short() {
-    ip_ += 2;
-    return (uint16_t)(*(ip_ - 2) << 8 | *(ip_ - 1));
-  }
-  inline Value read_constant() { return chunk_.constants[*ip_++]; }
-  inline std::string read_string() {
-    return std::get<std::string>(read_constant());
   }
 
   inline void binary_op(std::function<Value(double, double)> op) {
