@@ -5,6 +5,7 @@
 #include "Scanner.h"
 #include "ScannerFactory.h"
 #include "Scope.h"
+#include "Value.h"
 #include "debug.h"
 
 namespace lox {
@@ -35,7 +36,7 @@ class Parser {
   Parser(const std::string& source, const std::string& scanner, Scope& scope)
       : scanner_{ScannerFactory::get(scanner)(source)}, scope_{scope} {}
 
-  bool run(Chunk& chunk);
+  Function run();
 
  private:
   std::unique_ptr<Scanner> scanner_;

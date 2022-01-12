@@ -15,6 +15,7 @@
 #include "compiler/debug.h"
 
 DECLARE_bool(debug_stack);
+#define FRAMES_MAX 64
 
 using namespace lox::compiler;
 
@@ -29,8 +30,12 @@ namespace lox {
 namespace lang {
 
 struct CallFrame {
+  CallFrame(int ip, unsigned long offset, Function function)
+      : ip(ip), stackOffset(offset), function(std::move(function)) {}
+
   int ip;
   unsigned long stackOffset;
+  Function function;
 };
 
 class VM {
@@ -41,10 +46,14 @@ class VM {
   ~VM() = default;
 
   InterpretResult interpret(const std::string& code) {
-    lox::compiler::Chunk chunk;
-    if (compiler_->compile(code, chunk)) {
+    lox::compiler::Function func = compiler_->compile(code);
+    if (func) {
       try {
-        auto interpret_result = run(chunk);
+        stack_.push(func);
+        call(func, 0);
+        // TODO:: SHOULD I POP???
+        stack_.pop();
+        auto interpret_result = run(func->chunk());
         return interpret_result;
       } catch (std::runtime_error&) {
         return InterpretResult::RUNTIME_ERROR;
@@ -62,18 +71,40 @@ class VM {
   std::unordered_map<std::string, Value> globals_;
   std::vector<CallFrame> frames_;
 
-  InterpretResult run(Chunk& chunk) {
-    int ip_ = 0;
+  bool call(const Function& function, int argCount) {
+    if (argCount != function->arity()) {
+      runtimeError("Function arity mismatch");
+      return false;
+    }
 
-    auto read_byte = [&chunk, &ip_]() -> uint8_t {
-      return chunk.code.at(ip_++);
+    if (frames_.size() + 1 == FRAMES_MAX) {
+      runtimeError("Stack overflow.");
+      return false;
+    }
+
+    unsigned long offset = stack_.size() - argCount - 1;
+    frames_.emplace_back(CallFrame(0, offset, function));
+    return true;
+  }
+
+  InterpretResult run(Chunk& chunk) {
+    auto read_byte = [this]() -> uint8_t {
+      return this->frames_.back().function->chunk().code.at(
+          this->frames_.back().ip++);
     };
-    auto read_short = [&chunk, &ip_]() -> uint16_t {
-      ip_ += 2;
-      return (uint16_t)(chunk.code.at(ip_ - 2) << 8 | chunk.code.at(ip_ - 1));
+    auto read_short = [this]() -> uint16_t {
+      this->frames_.back().ip += 2;
+      uint8_t left = this->frames_.back().function->chunk().code.at(
+          this->frames_.back().ip - 2);
+      uint8_t right = this->frames_.back().function->chunk().code.at(
+          this->frames_.back().ip - 1);
+      return (uint16_t)(left << 8 | right);
     };
-    auto read_constant = [&chunk, &ip_]() -> Value {
-      return chunk.constants[chunk.code.at(ip_++)];
+    auto read_constant = [this]() -> Value {
+      return this->frames_.back()
+          .function->chunk()
+          .constants[this->frames_.back().function->chunk().code.at(
+              this->frames_.back().ip++)];
     };
     auto read_string = [&read_constant]() -> std::string {
       return std::get<std::string>(read_constant());
@@ -104,19 +135,19 @@ class VM {
       switch (static_cast<OpCode>(op)) {
         case OpCode::LOOP: {
           uint16_t offset = read_short();
-          ip_ -= offset;
+          this->frames_.back().ip -= offset;
           break;
         }
         case OpCode::JUMP_IF_FALSE: {
           uint16_t offset = read_short();
           if (isFalsy(stack_.peek(0))) {
-            ip_ += offset;
+            this->frames_.back().ip += offset;
           }
           break;
         }
         case OpCode::JUMP: {
           uint16_t offset = read_short();
-          ip_ += offset;
+          this->frames_.back().ip += offset;
           break;
         }
         case OpCode::RETURN: {
@@ -160,7 +191,7 @@ class VM {
         }
         case OpCode::GET_LOCAL: {
           uint8_t slot = read_byte();
-          stack_.push(stack_.get(slot));
+          stack_.push(stack_.get(frames_.back().stackOffset + slot));
           break;
         }
         case OpCode::SET_LOCAL: {

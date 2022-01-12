@@ -4,6 +4,7 @@
 #include "Chunk.h"
 #include "Parser.h"
 #include "Scope.h"
+#include "Value.h"
 
 DECLARE_string(scanner);
 
@@ -14,9 +15,10 @@ class Compiler {
  public:
   Compiler() {}
 
-  bool compile(const std::string& code, Chunk& chunk) {
+  Function compile(const std::string& code) {
+    Chunk chunk;
     auto parser = Parser(code, FLAGS_scanner, scope_);
-    return parser.run(chunk);
+    return parser.run();
   }
 
  private:

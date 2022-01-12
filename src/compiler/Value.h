@@ -30,6 +30,7 @@ class FunctionObject {
 
   const std::string& name() const { return name_; }
   const int arity() const { return arity_; }
+  Chunk& chunk() { return *chunk_; }
 };
 
 struct OutputVisitor {
