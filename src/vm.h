@@ -2,11 +2,9 @@
 
 #include <stdint.h>
 
-#include <chrono>
 #include <iostream>
 #include <stack>
 #include <string>
-#include <thread>
 #include <unordered_map>
 #include <variant>
 
@@ -48,6 +46,7 @@ class VM {
 
   VM(std::unique_ptr<Compiler> compiler) : compiler_(std::move(compiler)) {
     defineNative("clock", clockNative);
+    defineNative("sleep", sleepNative);
   }
   ~VM() = default;
 
@@ -57,7 +56,7 @@ class VM {
       try {
         stack_.push(closure->function);
         call(closure, 0);
-        auto interpret_result = run(closure->function->chunk());
+        auto interpret_result = run();
         return interpret_result;
       } catch (std::runtime_error&) {
         return InterpretResult::RUNTIME_ERROR;
@@ -66,8 +65,6 @@ class VM {
       return InterpretResult::COMPILE_ERROR;
     }
   }
-
-  InterpretResult interpret(lox::compiler::Chunk& chunk) { return run(chunk); }
 
   bool call(const Closure& closure, int argCount) {
     if (argCount != closure->function->arity()) {
@@ -102,6 +99,7 @@ class VM {
   Stack stack_;
   std::unordered_map<std::string, Value> globals_;
   std::vector<CallFrame> frames_;
+  UpvalueValue openUpvalues{nullptr};
 
   struct CallVisitor {
     const int argCount;
@@ -137,7 +135,17 @@ class VM {
     globals_[name] = obj;
   }
 
-  InterpretResult run(Chunk& chunk) {
+  void closeUpvalue(Value* last) {
+    while (this->openUpvalues != nullptr &&
+           this->openUpvalues->location >= last) {
+      auto upvalue = this->openUpvalues;
+      upvalue->closed = *upvalue->location;
+      upvalue->location = &upvalue->closed;
+      this->openUpvalues = upvalue->next;
+    }
+  }
+
+  InterpretResult run() {
     auto read_byte = [this]() -> uint8_t {
       return this->frames_.back().closure->function->chunk().code.at(
           this->frames_.back().ip++);
@@ -167,8 +175,7 @@ class VM {
       const uint8_t op = read_byte();
 
       if (FLAGS_debug_stack) {
-        std::cout << "=== Stack: " << static_cast<int>(op) << " ===\n";
-        std::cout << "Stack Size " << stack_.size() << std::endl;
+        std::cout << "=== Stack: " << codes[static_cast<int>(op)] << " ===\n";
         if (!stack_.empty()) {
           for (const auto& v : stack_) {
             std::cout << "=> ";
@@ -196,7 +203,6 @@ class VM {
               int offset = frames_.back().stackOffset + upvalue.index;
               closure->upvalues.push_back(captureUpvalue(&stack_.get(offset)));
             } else {
-              std::cout << "uplift upvalue\n";
               closure->upvalues.push_back(
                   frames_.back().closure->upvalues[upvalue.index]);
             }
@@ -228,22 +234,33 @@ class VM {
           this->frames_.back().ip += offset;
           break;
         }
+        case OpCode::POP: {
+          if (!stack_.empty()) {
+            stack_.pop();
+          }
+          break;
+        }
+        case OpCode::CLOSE_UPVALUE: {
+          if (!stack_.empty()) {
+            closeUpvalue(&stack_.back());
+            stack_.pop();
+          }
+          break;
+        }
         case OpCode::RETURN: {
           auto returnValue = stack_.peek();
           stack_.pop();
+          closeUpvalue(&stack_.get(frames_.back().stackOffset));
 
           auto lastOffset = frames_.back().stackOffset;
 
           frames_.pop_back();
-
           if (frames_.empty()) {
-            while (stack_.size() != lastOffset) {
-              stack_.pop();
-            }
             stack_.pop();
             return InterpretResult::OK;
           }
 
+          stack_.resize(lastOffset);
           stack_.push(returnValue);
 
           break;
@@ -252,7 +269,6 @@ class VM {
           std::cout << "[Out]: ";
           lox::compiler::Disassembler::value(stack_.peek());
           std::cout << "\n";
-          // std::this_thread::sleep_for(std::chrono::seconds(5));
           break;
         }
         case OpCode::DEFINE_GLOBAL: {
@@ -305,16 +321,6 @@ class VM {
           uint8_t slot = read_byte();
           Value copy = stack_.peek(0);
           stack_.set(frames_.back().stackOffset + slot, copy);
-          break;
-        }
-        case OpCode::POP: {
-          if (!stack_.empty()) {
-            stack_.pop();
-          }
-          break;
-        }
-        case OpCode::CLOSE_UPVALUE: {
-          
           break;
         }
         case OpCode::CONSTANT: {
@@ -430,8 +436,27 @@ class VM {
     }
   }
 
-  UpvalueValue captureUpvalue(Value* v) {
-    return std::make_shared<UpvalueObject>(v);
+  UpvalueValue captureUpvalue(Value* local) {
+    UpvalueValue prevUpvalue{nullptr};
+    UpvalueValue upvalue = this->openUpvalues;
+
+    while (upvalue != nullptr && upvalue->location > local) {
+      prevUpvalue = upvalue;
+      upvalue = upvalue->next;
+    }
+    if (upvalue != nullptr && upvalue->location == local) {
+      return upvalue;
+    }
+
+    UpvalueValue createdUpvalue = std::make_shared<UpvalueObject>(local);
+    createdUpvalue->next = upvalue;
+    if (prevUpvalue == nullptr) {
+      openUpvalues = createdUpvalue;
+    } else {
+      prevUpvalue->next = createdUpvalue;
+    }
+
+    return createdUpvalue;
   }
 
   inline bool isFalsy(const Value& v) {

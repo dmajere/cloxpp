@@ -3,6 +3,7 @@ var b = 2;
 var c = a + b - 3 * 4 / 5;
 print c;
 
+
 var truthy = true;
 var cond;
 if (truthy) { cond = "defined"; }
@@ -41,15 +42,23 @@ out();
 var globalGet;
 var globalSet;
 fun main() {
-    var a = "initial";
+    var first = "first";
+    var second = "second";
+    var third = "third";
 
-    fun set(param) { a = param; }
-    fun get() {print a;}
+    fun set(param) { second = param; }
+
+    fun get() {
+        print first;
+        print second;
+        print third;
+    }
 
     globalSet = set;
     globalGet = get;
 }
 main();
+
 globalGet();
 globalSet("updated");
 globalGet();

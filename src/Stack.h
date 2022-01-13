@@ -2,14 +2,17 @@
 
 #include "compiler/Value.h"
 
+constexpr size_t kMaxStackSize{255};
+
 namespace lox {
 namespace lang {
 
 class Stack {
  public:
-  Stack() { stack_.reserve(255); }
+  Stack() { stack_.reserve(kMaxStackSize); }
   lox::compiler::Value& get(size_t i) { return stack_[i]; }
 
+  lox::compiler::Value& back() { return stack_.back(); }
   const lox::compiler::Value& peek() const { return peek(0); }
   const lox::compiler::Value& peek(size_t i) const {
     if (stack_.size() < i) {
@@ -41,6 +44,10 @@ class Stack {
   auto begin() { return stack_.begin(); }
   auto end() { return stack_.end(); }
   void reset() { stack_.clear(); }
+  void resize(size_t size) {
+    stack_.resize(size);
+    stack_.reserve(kMaxStackSize);
+  }
 
  private:
   std::vector<lox::compiler::Value> stack_;

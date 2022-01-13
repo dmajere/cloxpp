@@ -302,10 +302,9 @@ void Parser::startScope(Chunk& chunk, int depth) {
 void Parser::endScope(Chunk& chunk, int depth) {
   int line = scanner_->previous().line;
   auto& locals = chunk.scope.locals(depth);
-  for (const auto& constant : locals) {
-    if (constant.isCaptured) {
+  for (auto it = locals.rbegin(); it != locals.rend(); ++it) {
+    if (it->isCaptured) {
       chunk.addCode(OpCode::CLOSE_UPVALUE, line);
-
     } else {
       chunk.addCode(OpCode::POP, line);
     }
@@ -441,12 +440,13 @@ size_t Parser::resolveUpvalue(Chunk& chunk, const Token& name) {
   if (upvalue != -1) {
     return addUpvalue(chunk, static_cast<uint8_t>(upvalue), false);
   }
+
   return -1;
 }
 
 int Parser::addUpvalue(Chunk& chunk, uint8_t index, bool isLocal) {
   for (size_t i = 0; i < chunk.upvalues.size(); i++) {
-    if (chunk.upvalues[i].index == index &&
+    if (chunk.upvalues[i].index == index + 1 &&
         chunk.upvalues[i].isLocal == isLocal) {
       return static_cast<int>(i);
     }

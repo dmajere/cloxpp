@@ -73,7 +73,7 @@ struct OutputVisitor {
     std::cout << "function " << func->name();
   }
   void operator()(Closure closure) const {
-    std::cout << "closure " << closure->function->name();
+    std::cout << "closure <" << closure->function->name() << ">";
   }
   void operator()(NativeFunction func) const { std::cout << "native function"; }
   void operator()(UpvalueValue upvalue) const {

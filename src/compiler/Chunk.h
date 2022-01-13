@@ -12,6 +12,16 @@
 namespace lox {
 namespace compiler {
 
+const std::vector<std::string> codes{
+    "CONSTANT",      "NIL",           "TRUE",      "FALSE",     "RETURN",
+    "NEGATE",        "ADD",           "SUBSTRACT", "MULTIPLY",  "DIVIDE",
+    "NOT",           "EQUAL",         "GREATER",   "LESS",      "NOT_EQUAL",
+    "GREATER_EQUAL", "LESS_EQUAL",    "PRINT",     "POP",       "DEFINE_GLOBAL",
+    "GET_GLOBAL",    "SET_GLOBAL",    "GET_LOCAL", "SET_LOCAL", "JUMP_IF_FALSE",
+    "JUMP",          "LOOP",          "CALL",      "CLOSURE",   "SET_UPVALUE",
+    "GET_UPVALUE",   "CLOSE_UPVALUE",
+};
+
 enum class OpCode {
   CONSTANT,
   NIL,
