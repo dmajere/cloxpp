@@ -11,9 +11,12 @@ namespace compiler {
 
 struct Chunk;
 struct FunctionObject;
+struct NativeFunctionObject;
 using Function = std::shared_ptr<FunctionObject>;
+using NativeFunction = std::shared_ptr<NativeFunctionObject>;
 
-using Value = std::variant<double, bool, std::monostate, std::string, Function>;
+using Value = std::variant<double, bool, std::monostate, std::string, Function,
+                           NativeFunction>;
 
 std::ostream& operator<<(std::ostream& os, const Value& v);
 
@@ -33,6 +36,12 @@ class FunctionObject {
   Chunk& chunk() { return *chunk_; }
 };
 
+typedef Value (*NativeFn)(int argCount, std::vector<Value>::iterator args);
+
+struct NativeFunctionObject {
+  NativeFn function;
+};
+
 struct OutputVisitor {
   void operator()(const double d) const { std::cout << d; }
   void operator()(const bool b) const { std::cout << (b ? "true" : "false"); }
@@ -43,6 +52,7 @@ struct OutputVisitor {
   void operator()(Function func) const {
     std::cout << "function " << func->name();
   }
+  void operator()(NativeFunction func) const { std::cout << "native function"; }
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Value& v) {

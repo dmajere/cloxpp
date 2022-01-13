@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <variant>
 
+#include "NativeFunctions.h"
 #include "Stack.h"
 #include "compiler/Chunk.h"
 #include "compiler/Compiler.h"
@@ -45,7 +46,9 @@ class VM {
  public:
   enum class InterpretResult { OK, COMPILE_ERROR, RUNTIME_ERROR };
 
-  VM(std::unique_ptr<Compiler> compiler) : compiler_(std::move(compiler)) {}
+  VM(std::unique_ptr<Compiler> compiler) : compiler_(std::move(compiler)) {
+    defineNative("clock", clockNative);
+  }
   ~VM() = default;
 
   InterpretResult interpret(const std::string& code) {
@@ -92,6 +95,7 @@ class VM {
     // resetStack();
     throw std::runtime_error("error");
   }
+  Stack* stack() { return &stack_; }
 
  private:
   std::unique_ptr<Compiler> compiler_;
@@ -108,6 +112,14 @@ class VM {
     bool operator()(const Function& func) const {
       return vm->call(func, argCount);
     }
+    bool operator()(const NativeFunction& native) const {
+      auto result = native->function(argCount, vm->stack()->end() - argCount);
+      for (int i = 0; i < argCount; i++) {
+        vm->stack()->pop();
+      }
+      vm->stack()->push(result);
+      return true;
+    }
 
     template <typename T>
     bool operator()(const T& value) const {
@@ -117,6 +129,12 @@ class VM {
   };
   bool callValue(const Value& callee, int argCount) {
     return std::visit(CallVisitor(argCount, this), callee);
+  }
+
+  void defineNative(const std::string& name, NativeFn function) {
+    auto obj = std::make_shared<NativeFunctionObject>();
+    obj->function = function;
+    globals_[name] = obj;
   }
 
   InterpretResult run(Chunk& chunk) {
@@ -205,6 +223,8 @@ class VM {
             stack_.pop();
             return InterpretResult::OK;
           }
+
+          stack_.push(returnValue);
 
           break;
         }
