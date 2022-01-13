@@ -56,7 +56,7 @@ class VM {
     if (closure && closure->function) {
       try {
         stack_.push(closure->function);
-        call(closure->function, 0);
+        call(closure, 0);
         auto interpret_result = run(closure->function->chunk());
         return interpret_result;
       } catch (std::runtime_error&) {
@@ -69,8 +69,8 @@ class VM {
 
   InterpretResult interpret(lox::compiler::Chunk& chunk) { return run(chunk); }
 
-  bool call(const Function& function, int argCount) {
-    if (argCount != function->arity()) {
+  bool call(const Closure& closure, int argCount) {
+    if (argCount != closure->function->arity()) {
       runtimeError("Function arity mismatch");
       return false;
     }
@@ -81,11 +81,11 @@ class VM {
     }
 
     if (FLAGS_debug) {
-      Disassembler::dis(function->chunk(), function->name());
+      Disassembler::dis(closure->function->chunk(), closure->function->name());
     }
 
     unsigned long offset = stack_.size() - argCount - 1;
-    frames_.emplace_back(CallFrame(0, offset, function));
+    frames_.emplace_back(CallFrame(0, offset, closure->function));
     return true;
   }
 
@@ -109,11 +109,8 @@ class VM {
 
     CallVisitor(int argCount, VM* vm) : argCount(argCount), vm(vm) {}
 
-    bool operator()(const Function& func) const {
-      return vm->call(func, argCount);
-    }
     bool operator()(const Closure& closure) const {
-      return vm->call(closure->function, argCount);
+      return vm->call(closure, argCount);
     }
     bool operator()(const NativeFunction& native) const {
       auto result = native->function(argCount, vm->stack()->end() - argCount);
@@ -162,6 +159,9 @@ class VM {
     auto read_string = [&read_constant]() -> std::string {
       return std::get<std::string>(read_constant());
     };
+    auto read_function = [&read_constant]() -> Function {
+      return std::get<Function>(read_constant());
+    };
 
     for (;;) {
       const uint8_t op = read_byte();
@@ -187,6 +187,13 @@ class VM {
   } while (false)
 
       switch (static_cast<OpCode>(op)) {
+        case OpCode::CLOSURE: {
+          auto function = read_function();
+          Closure closure =
+              std::make_shared<ClosureObject>(std::move(function));
+          stack_.push(closure);
+          break;
+        }
         case OpCode::CALL: {
           int argCount = read_byte();
           if (!callValue(stack_.peek(argCount), argCount)) {

@@ -106,7 +106,7 @@ void Parser::function(Chunk& chunk, const std::string& name, int depth) {
   Function func =
       std::make_shared<FunctionObject>(arity, name, std::move(function_chunk));
 
-  emitConstant(chunk, func, OpCode::CONSTANT, line);
+  emitConstant(chunk, func, OpCode::CLOSURE, line);
   // endScope(chunk, scope);
 }
 void Parser::call(Chunk& chunk, int depth, bool canAssign) {

@@ -57,6 +57,10 @@ class Disassembler {
         std::cout << "CALL";
         offset++;
         break;
+      case OpCode::CLOSURE:
+        std::cout << "CLOSURE ";
+        value(chunk.constants[chunk.code[++offset]]);
+        break;
       case OpCode::RETURN:
         std::cout << "RETURN";
         break;

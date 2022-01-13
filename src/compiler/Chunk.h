@@ -40,6 +40,7 @@ enum class OpCode {
   JUMP,
   LOOP,
   CALL,
+  CLOSURE,
 };
 
 struct Chunk {
