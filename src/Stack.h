@@ -7,6 +7,7 @@ namespace lang {
 
 class Stack {
  public:
+  Stack() { stack_.reserve(255); }
   lox::compiler::Value get(size_t i) const { return stack_[i]; }
 
   const lox::compiler::Value& peek() const { return peek(0); }
@@ -20,7 +21,9 @@ class Stack {
     stack_[i] = std::move(value);
   }
 
-  void pop() { stack_.pop_back(); }
+  void pop() {
+    if (!stack_.empty()) stack_.pop_back();
+  }
   void push(const lox::compiler::Value& value) {
     stack_.push_back(std::move(value));
   }
@@ -35,8 +38,8 @@ class Stack {
   }
   bool empty() const { return stack_.empty(); }
   size_t size() const { return stack_.size(); }
-  auto begin() { return stack_.begin(); }
-  auto end() { return stack_.end(); }
+  auto begin() { return stack_.cbegin(); }
+  auto end() { return stack_.cend(); }
 
  private:
   std::vector<lox::compiler::Value> stack_;

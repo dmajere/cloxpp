@@ -2,9 +2,11 @@
 
 #include <stdint.h>
 
+#include <chrono>
 #include <iostream>
 #include <stack>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <variant>
 
@@ -52,8 +54,6 @@ class VM {
       try {
         stack_.push(func);
         call(func, 0);
-        // TODO:: SHOULD I POP???
-        stack_.pop();
         auto interpret_result = run(func->chunk());
         return interpret_result;
       } catch (std::runtime_error&) {
@@ -147,6 +147,7 @@ class VM {
 
       if (FLAGS_debug_stack) {
         std::cout << "=== Stack: " << static_cast<int>(op) << " ===\n";
+        std::cout << "Stack Size " << stack_.size() << std::endl;
         if (!stack_.empty()) {
           for (const auto& v : stack_) {
             std::cout << "=> ";
@@ -190,8 +191,15 @@ class VM {
           break;
         }
         case OpCode::RETURN: {
-          frames_.pop_back();
+          auto returnValue = stack_.peek();
+          stack_.pop();
+
           auto lastOffset = frames_.back().stackOffset;
+          while (stack_.size() != lastOffset) {
+            stack_.pop();
+          }
+
+          frames_.pop_back();
 
           if (frames_.empty()) {
             stack_.pop();
@@ -204,6 +212,7 @@ class VM {
           std::cout << "[Out]: ";
           lox::compiler::Disassembler::value(stack_.peek());
           std::cout << "\n";
+          // std::this_thread::sleep_for(std::chrono::seconds(5));
           break;
         }
         case OpCode::DEFINE_GLOBAL: {
@@ -244,7 +253,7 @@ class VM {
         case OpCode::SET_LOCAL: {
           uint8_t slot = read_byte();
           Value copy = stack_.peek(0);
-          stack_.set(slot, copy);
+          stack_.set(frames_.back().stackOffset + slot, copy);
           break;
         }
         case OpCode::POP: {

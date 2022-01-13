@@ -58,6 +58,7 @@ class Parser {
   void ifStatement(Chunk& chunk, int depth);
   void whileStatement(Chunk& chunk, int depth);
   void forStatement(Chunk& chunk, int depth);
+  void returnStatement(Chunk& chunk, int depth);
   void expression(Chunk& chunk, int depth);
   void function(Chunk& chunk, const std::string& name, int depth);
   void grouping(Chunk& chunk, int depth, bool canAssign);
@@ -83,6 +84,10 @@ class Parser {
   void startScope(int depth);
   void endScope(Chunk& chunk, int depth);
 
+  inline void emitReturnNil(Chunk& chunk) {
+    chunk.addCode(OpCode::NIL, scanner_->previous().line);
+    chunk.addCode(OpCode::RETURN, scanner_->previous().line);
+  }
   inline void emitReturn(Chunk& chunk) {
     chunk.addCode(OpCode::RETURN, scanner_->previous().line);
   }

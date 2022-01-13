@@ -94,6 +94,16 @@ class Scope {
     return -1;
   }
 
+  void debug() const {
+    for (const auto& scope : locals_) {
+      std::cout << "scope ===> \n";
+      for (const auto& value : scope) {
+        std::cout << ":=> " << value.name.lexeme << "\n";
+      }
+      std::cout << "<===\n";
+    }
+  }
+
  private:
   std::vector<std::vector<Local>> locals_;
 

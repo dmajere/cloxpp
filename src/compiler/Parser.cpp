@@ -23,9 +23,6 @@ Function Parser::run() {
     }
     end(*chunk);
 
-    // if (FLAGS_debug && !hadError_) {
-    //   Disassembler::dis(*chunk, "Compiled chunk");
-    // }
   } catch (ParseError& error) {
     hadError_ = true;
     std::cout << error.what();
@@ -35,7 +32,10 @@ Function Parser::run() {
     std::cout << error.what();
     scanner_->synchronize();
   }
-  return std::make_shared<FunctionObject>(0, "<script>", std::move(chunk));
+  if (!hadError_) {
+    return std::make_shared<FunctionObject>(0, "<script>", std::move(chunk));
+  }
+  return nullptr;
 }
 
 void Parser::declaration(Chunk& chunk, int depth) {
@@ -48,7 +48,7 @@ void Parser::declaration(Chunk& chunk, int depth) {
   }
 }
 
-void Parser::end(Chunk& chunk) { emitReturn(chunk); }
+void Parser::end(Chunk& chunk) { emitReturnNil(chunk); }
 
 void Parser::variableDeclaration(Chunk& chunk, int depth) {
   const Token global = parseVariable("Expect variable name");
@@ -88,6 +88,7 @@ void Parser::function(Chunk& chunk, const std::string& name, int depth) {
                     "Function can't have more than 255 parameter");
       }
       auto constant = parseVariable("expect parameter name");
+      declareVariable(constant, scope);
       defineVariable(*function_chunk, constant, scope);
     } while (scanner_->match(Token::Type::COMMA));
   }
@@ -95,18 +96,21 @@ void Parser::function(Chunk& chunk, const std::string& name, int depth) {
 
   scanner_->consume(Token::Type::LEFT_BRACE, kExpectLeftBrace);
   block(*function_chunk, scope);
-  emitReturn(*function_chunk);
+  if (function_chunk->code.empty() ||
+      function_chunk->code.back() != static_cast<uint8_t>(OpCode::RETURN)) {
+    emitReturnNil(*function_chunk);
+  }
 
   Function func =
       std::make_shared<FunctionObject>(arity, name, std::move(function_chunk));
 
   emitConstant(chunk, func, OpCode::CONSTANT, line);
-  endScope(chunk, scope);
+  // endScope(chunk, scope);
 }
 void Parser::call(Chunk& chunk, int depth, bool canAssign) {
   uint8_t argCount = argumentList(chunk, depth);
   chunk.addCode(OpCode::CALL, scanner_->previous().line);
-  chunk.addOperand(0);
+  chunk.addOperand(argCount);
 }
 
 uint8_t Parser::argumentList(Chunk& chunk, int depth) {
@@ -128,6 +132,8 @@ uint8_t Parser::argumentList(Chunk& chunk, int depth) {
 void Parser::statement(Chunk& chunk, int depth) {
   if (scanner_->match(Token::Type::PRINT)) {
     printStatement(chunk, depth);
+  } else if (scanner_->match(Token::Type::RETURN)) {
+    returnStatement(chunk, depth);
   } else if (scanner_->match(Token::Type::WHILE)) {
     whileStatement(chunk, depth);
   } else if (scanner_->match(Token::Type::FOR)) {
@@ -257,6 +263,16 @@ void Parser::forStatement(Chunk& chunk, int depth) {
   endScope(chunk, scope);
 }
 
+void Parser::returnStatement(Chunk& chunk, int depth) {
+  if (scanner_->match(Token::Type::SEMICOLON)) {
+    emitReturnNil(chunk);
+  } else {
+    expression(chunk, depth);
+    scanner_->consume(Token::Type::SEMICOLON, kExpectSemicolon);
+    emitReturn(chunk);
+  }
+}
+
 void Parser::and_(Chunk& chunk, int depth, bool canAssign) {
   int line = scanner_->previous().line;
   int endJump = emitJump(chunk, OpCode::JUMP_IF_FALSE, line);
@@ -282,6 +298,7 @@ void Parser::endScope(Chunk& chunk, int depth) {
   auto removed_vars = scope_.pop_scope(depth);
   int line = scanner_->previous().line;
   while (removed_vars--) {
+    std::cout << "remove vars " << removed_vars << "\n";
     chunk.addCode(OpCode::POP, line);
   }
 }
@@ -407,14 +424,14 @@ void Parser::namedVariable(Chunk& chunk, const Token& token, bool canAssign,
     expression(chunk, depth);
     if (offset != -1) {
       chunk.addCode(OpCode::SET_LOCAL, token.line);
-      chunk.addOperand(static_cast<uint8_t>(offset));
+      chunk.addOperand(static_cast<uint8_t>(offset + 1));
     } else {
       emitConstant(chunk, token.lexeme, OpCode::SET_GLOBAL, token.line);
     }
   } else {
     if (offset != -1) {
       chunk.addCode(OpCode::GET_LOCAL, token.line);
-      chunk.addOperand(static_cast<uint8_t>(offset));
+      chunk.addOperand(static_cast<uint8_t>(offset + 1));
     } else {
       emitConstant(chunk, token.lexeme, OpCode::GET_GLOBAL, token.line);
     }

@@ -15,3 +15,6 @@ for (var idx = 0; idx < 3; idx = idx + 1 ) { print "for " + idx;}
 
 fun test() { print "test"; }
 test();
+
+fun test2(param) { print "arg " + param;}
+test2("parameter");
