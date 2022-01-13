@@ -317,7 +317,6 @@ const Token& Parser::parseVariable(const std::string& error_message) {
 }
 
 void Parser::declareVariable(Chunk& chunk, const Token& name, int depth) {
-  std::cout << "declare " << name.lexeme << " depth " << depth << "\n";
   if (depth == 0) {
     return;
   }
@@ -325,7 +324,6 @@ void Parser::declareVariable(Chunk& chunk, const Token& name, int depth) {
 }
 
 void Parser::defineVariable(Chunk& chunk, const Token& name, int depth) {
-  std::cout << "define " << name.lexeme << " depth " << depth << "\n";
   if (depth > 0) {
     chunk.scope.initialize(name, depth);
     return;
@@ -457,7 +455,7 @@ int Parser::addUpvalue(Chunk& chunk, uint8_t index, bool isLocal) {
     return 0;
   }
 
-  chunk.upvalues.emplace_back(Upvalue(index, isLocal));
+  chunk.upvalues.emplace_back(Upvalue(index + 1, isLocal));
   return chunk.upvalues.size() - 1;
 }
 
@@ -465,8 +463,6 @@ void Parser::namedVariable(Chunk& chunk, const Token& token, bool canAssign,
                            int depth) {
   int offset = resolveLocal(chunk, token);
   int upvalue = resolveUpvalue(chunk, token);
-  std::cout << "Variable " << token.lexeme << " local " << offset << " upvalue "
-            << upvalue << "\n";
 
   OpCode get;
   OpCode set;

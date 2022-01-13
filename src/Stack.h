@@ -8,7 +8,7 @@ namespace lang {
 class Stack {
  public:
   Stack() { stack_.reserve(255); }
-  lox::compiler::Value get(size_t i) const { return stack_[i]; }
+  lox::compiler::Value& get(size_t i) { return stack_[i]; }
 
   const lox::compiler::Value& peek() const { return peek(0); }
   const lox::compiler::Value& peek(size_t i) const {

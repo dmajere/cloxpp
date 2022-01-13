@@ -191,6 +191,16 @@ class VM {
           auto function = read_function();
           Closure closure =
               std::make_shared<ClosureObject>(std::move(function));
+          for (auto& upvalue : closure->function->chunk().upvalues) {
+            if (upvalue.isLocal) {
+              int offset = frames_.back().stackOffset + upvalue.index;
+              closure->upvalues.push_back(captureUpvalue(&stack_.get(offset)));
+            } else {
+              std::cout << "uplift upvalue\n";
+              closure->upvalues.push_back(
+                  frames_.back().closure->upvalues[upvalue.index]);
+            }
+          }
           stack_.push(closure);
           break;
         }
@@ -223,13 +233,13 @@ class VM {
           stack_.pop();
 
           auto lastOffset = frames_.back().stackOffset;
-          while (stack_.size() != lastOffset) {
-            stack_.pop();
-          }
 
           frames_.pop_back();
 
           if (frames_.empty()) {
+            while (stack_.size() != lastOffset) {
+              stack_.pop();
+            }
             stack_.pop();
             return InterpretResult::OK;
           }
@@ -266,9 +276,15 @@ class VM {
           it->second = std::move(stack_.peek(0));
           break;
         }
-        case OpCode::GET_UPVALUE:
+        case OpCode::GET_UPVALUE: {
+          uint8_t slot = read_byte();
+          auto upvalue = frames_.back().closure->upvalues[slot];
+          stack_.push(*frames_.back().closure->upvalues[slot]->location);
+          break;
+        }
         case OpCode::SET_UPVALUE: {
           uint8_t slot = read_byte();
+          *frames_.back().closure->upvalues[slot]->location = stack_.peek(0);
           break;
         }
         case OpCode::GET_GLOBAL: {
@@ -408,6 +424,10 @@ class VM {
     } catch (std::bad_variant_access&) {
       runtimeError("Operands must be numbers.");
     }
+  }
+
+  UpvalueValue captureUpvalue(Value* v) {
+    return std::make_shared<UpvalueObject>(v);
   }
 
   inline bool isFalsy(const Value& v) {

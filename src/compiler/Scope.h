@@ -37,15 +37,12 @@ class Scope {
     if (maybeDefined) {
       scope_error(name, "Variable already defined");
     }
-    std::cout << "declare " << name.lexeme << " depth " << depth << "\n";
     locals_[depth].push_back({name, position});
-    debug();
   }
 
   void initialize(const Token& name, int depth) {
     auto maybeLocal = find(name, depth);
     if (maybeLocal) {
-      std::cout << "define " << name.lexeme << " depth " << depth << "\n";
       maybeLocal->initialized = true;
     }
   }

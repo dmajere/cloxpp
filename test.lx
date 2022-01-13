@@ -39,3 +39,5 @@ fun outer () {
 }
 var out = outer();
 out();
+
+print nil;
