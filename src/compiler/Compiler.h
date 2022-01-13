@@ -1,9 +1,7 @@
 #pragma once
 #include <vector>
 
-#include "Chunk.h"
 #include "Parser.h"
-#include "Scope.h"
 #include "Value.h"
 
 DECLARE_string(scanner);
@@ -16,14 +14,12 @@ class Compiler {
   Compiler() {}
 
   Closure compile(const std::string& code) {
-    Chunk chunk;
-    auto parser = Parser(code, FLAGS_scanner, scope_);
+    auto parser = Parser(code, FLAGS_scanner);
     return parser.run();
   }
 
  private:
   bool hadError{false};
-  Scope scope_;
 };
 
 }  // namespace compiler

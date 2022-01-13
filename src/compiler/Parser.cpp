@@ -33,6 +33,7 @@ Closure Parser::run() {
     scanner_->synchronize();
   }
   if (!hadError_) {
+    chunk->scope.clear();
     auto func =
         std::make_shared<FunctionObject>(0, "<script>", std::move(chunk));
     return std::make_shared<ClosureObject>(std::move(func));
@@ -54,7 +55,7 @@ void Parser::end(Chunk& chunk) { emitReturnNil(chunk); }
 
 void Parser::variableDeclaration(Chunk& chunk, int depth) {
   const Token global = parseVariable("Expect variable name");
-  declareVariable(global, depth);
+  declareVariable(chunk, global, depth);
 
   if (scanner_->match(Token::Type::EQUAL)) {
     expression(chunk, depth);
@@ -68,7 +69,7 @@ void Parser::variableDeclaration(Chunk& chunk, int depth) {
 
 void Parser::functionDeclaration(Chunk& chunk, int depth) {
   const Token global = parseVariable("Expect variable name");
-  declareVariable(global, depth);
+  declareVariable(chunk, global, depth);
   function(chunk, global.lexeme, depth);
   defineVariable(chunk, global, depth);
 }
@@ -76,9 +77,10 @@ void Parser::functionDeclaration(Chunk& chunk, int depth) {
 void Parser::function(Chunk& chunk, const std::string& name, int depth) {
   int line = scanner_->previous().line;
   auto function_chunk = std::make_unique<Chunk>();
+  function_chunk->parent = &chunk;
   int scope = depth + 1;
 
-  startScope(scope);
+  startScope(*function_chunk, scope);
 
   scanner_->consume(Token::Type::LEFT_PAREN, kExpectLeftParen);
   int arity = 0;
@@ -90,13 +92,15 @@ void Parser::function(Chunk& chunk, const std::string& name, int depth) {
                     "Function can't have more than 255 parameter");
       }
       auto constant = parseVariable("expect parameter name");
-      declareVariable(constant, scope);
+      declareVariable(*function_chunk, constant, scope);
       defineVariable(*function_chunk, constant, scope);
     } while (scanner_->match(Token::Type::COMMA));
   }
   scanner_->consume(Token::Type::RIGHT_PAREN, kExpectRightParen);
 
   scanner_->consume(Token::Type::LEFT_BRACE, kExpectLeftBrace);
+  std::cout << "debug at fuction decl \n";
+  function_chunk->scope.debug();
   block(*function_chunk, scope);
   if (function_chunk->code.empty() ||
       function_chunk->code.back() != static_cast<uint8_t>(OpCode::RETURN)) {
@@ -145,7 +149,7 @@ void Parser::statement(Chunk& chunk, int depth) {
   } else if (scanner_->match(Token::Type::LEFT_BRACE)) {
     int scope = depth + 1;
     try {
-      startScope(scope);
+      startScope(chunk, scope);
       block(chunk, scope);
       endScope(chunk, scope);
     } catch (ParseError& error) {
@@ -217,7 +221,7 @@ void Parser::whileStatement(Chunk& chunk, int depth) {
 void Parser::forStatement(Chunk& chunk, int depth) {
   int line = scanner_->previous().line;
   int scope = depth + 1;
-  startScope(scope);
+  startScope(chunk, scope);
   scanner_->consume(Token::Type::LEFT_PAREN, kExpectLeftParen);
 
   // init
@@ -294,13 +298,14 @@ void Parser::or_(Chunk& chunk, int depth, bool canAssign) {
   patchJump(chunk, endJump);
 }
 
-void Parser::startScope(int depth) { scope_.push_scope(depth); }
+void Parser::startScope(Chunk& chunk, int depth) {
+  chunk.scope.push_scope(depth);
+}
 
 void Parser::endScope(Chunk& chunk, int depth) {
-  auto removed_vars = scope_.pop_scope(depth);
+  auto removed_vars = chunk.scope.pop_scope(depth);
   int line = scanner_->previous().line;
   while (removed_vars--) {
-    std::cout << "remove vars " << removed_vars << "\n";
     chunk.addCode(OpCode::POP, line);
   }
 }
@@ -308,16 +313,18 @@ const Token& Parser::parseVariable(const std::string& error_message) {
   return scanner_->consume(Token::Type::IDENTIFIER, error_message);
 }
 
-void Parser::declareVariable(const Token& name, int depth) {
+void Parser::declareVariable(Chunk& chunk, const Token& name, int depth) {
+  std::cout << "declare " << name.lexeme << " depth " << depth << "\n";
   if (depth == 0) {
     return;
   }
-  scope_.declare(name, depth);
+  chunk.scope.declare(name, depth);
 }
 
 void Parser::defineVariable(Chunk& chunk, const Token& name, int depth) {
+  std::cout << "define " << name.lexeme << " depth " << depth << "\n";
   if (depth > 0) {
-    scope_.initialize(name, depth);
+    chunk.scope.initialize(name, depth);
     return;
   }
   emitConstant(chunk, name.lexeme, OpCode::DEFINE_GLOBAL, name.line);
@@ -418,25 +425,49 @@ void Parser::variable(Chunk& chunk, int depth, bool canAssign) {
   namedVariable(chunk, scanner_->previous(), canAssign, depth);
 }
 
+size_t Parser::resolveUpvalue(Chunk& chunk, const Token& name) {
+  if (chunk.parent == nullptr) {
+    return -1;
+  }
+  auto local = resolveLocal(chunk, name);
+  if (local != -1) {
+    return addUpvalue(chunk, static_cast<uint8_t>(local), true);
+  }
+  return -1;
+}
+size_t Parser::addUpvalue(Chunk& chunk, uint8_t local, bool isLocal) {
+  return -1;
+}
+
 void Parser::namedVariable(Chunk& chunk, const Token& token, bool canAssign,
                            int depth) {
-  int offset = resolveLocal(token);
+  chunk.scope.debug();
+  int offset = resolveLocal(chunk, token);
+  int upvalue = resolveUpvalue(chunk, token);
+  std::cout << "Variable " << token.lexeme << " local " << offset << " upvalue "
+            << upvalue << "\n";
+
+  OpCode get;
+  OpCode set;
+  if (offset != -1) {
+    get = OpCode::GET_LOCAL;
+    set = OpCode::SET_LOCAL;
+    offset++;
+  } else if (upvalue != -1) {
+    get = OpCode::GET_UPVALUE;
+    set = OpCode::SET_UPVALUE;
+    offset = upvalue;
+  } else {
+    get = OpCode::GET_GLOBAL;
+    set = OpCode::SET_GLOBAL;
+    offset = chunk.addConstant(token.lexeme);
+  }
 
   if (canAssign && scanner_->match(Token::Type::EQUAL)) {
     expression(chunk, depth);
-    if (offset != -1) {
-      chunk.addCode(OpCode::SET_LOCAL, token.line);
-      chunk.addOperand(static_cast<uint8_t>(offset + 1));
-    } else {
-      emitConstant(chunk, token.lexeme, OpCode::SET_GLOBAL, token.line);
-    }
+    emitNamedVariable(chunk, set, offset, token.line);
   } else {
-    if (offset != -1) {
-      chunk.addCode(OpCode::GET_LOCAL, token.line);
-      chunk.addOperand(static_cast<uint8_t>(offset + 1));
-    } else {
-      emitConstant(chunk, token.lexeme, OpCode::GET_GLOBAL, token.line);
-    }
+    emitNamedVariable(chunk, get, offset, token.line);
   }
 }
 

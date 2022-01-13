@@ -90,9 +90,9 @@ class VM {
   }
 
   void runtimeError(const std::string& message) {
-    // int line = ip_ - chunk_.code.end() - 1;
     std::cout << "RuntimeError: " << message << "\n";
-    // resetStack();
+    frames_.pop_back();
+    stack_.reset();
     throw std::runtime_error("error");
   }
   Stack* stack() { return &stack_; }

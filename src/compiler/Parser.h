@@ -33,14 +33,13 @@ struct ParseRule {
 
 class Parser {
  public:
-  Parser(const std::string& source, const std::string& scanner, Scope& scope)
-      : scanner_{ScannerFactory::get(scanner)(source)}, scope_{scope} {}
+  Parser(const std::string& source, const std::string& scanner)
+      : scanner_{ScannerFactory::get(scanner)(source)} {}
 
   Closure run();
 
  private:
   std::unique_ptr<Scanner> scanner_;
-  Scope& scope_;
   bool hadError_{false};
 
   inline bool isAtEnd() const {
@@ -73,15 +72,19 @@ class Parser {
   void call(Chunk& chunk, int depth, bool canAssign);
 
   const Token& parseVariable(const std::string& error_message);
-  void declareVariable(const Token& name, int depth);
+  void declareVariable(Chunk& chunk, const Token& name, int depth);
   void defineVariable(Chunk& chunk, const Token& name, int depth);
   void namedVariable(Chunk& chunk, const Token& token, bool canAssign,
                      int depth);
-  inline size_t resolveLocal(const Token& name) { return scope_.find(name); }
+  inline size_t resolveLocal(Chunk& chunk, const Token& name) {
+    return chunk.scope.find(name);
+  }
+  size_t resolveUpvalue(Chunk& chunk, const Token& name);
+  size_t addUpvalue(Chunk& chunk, uint8_t local, bool isLocal);
   uint8_t argumentList(Chunk& chunk, int depth);
 
   void parsePrecedence(Chunk& chunk, int depth, const Precedence& precedence);
-  void startScope(int depth);
+  void startScope(Chunk& chunk, int depth);
   void endScope(Chunk& chunk, int depth);
 
   inline void emitReturnNil(Chunk& chunk) {
@@ -97,6 +100,13 @@ class Parser {
     chunk.addCode(code, line);
     chunk.addOperand(offset);
   }
+
+  inline void emitNamedVariable(Chunk& chunk, const OpCode& code,
+                                uint8_t offset, int line) {
+    chunk.addCode(code, line);
+    chunk.addOperand(offset);
+  }
+
   inline int emitJump(Chunk& chunk, const OpCode& code, int line) {
     chunk.addCode(code, line);
     chunk.addOperand(0xff);

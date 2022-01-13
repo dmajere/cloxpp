@@ -1,6 +1,7 @@
 #pragma once
 #include <folly/Optional.h>
 
+#include <sstream>
 #include <vector>
 
 #include "../RuntimeError.h"
@@ -36,12 +37,15 @@ class Scope {
     if (maybeDefined) {
       scope_error(name, "Variable already defined");
     }
+    std::cout << "declare " << name.lexeme << " depth " << depth << "\n";
     locals_[depth].push_back({name, position});
+    debug();
   }
 
   void initialize(const Token& name, int depth) {
     auto maybeLocal = find(name, depth);
     if (maybeLocal) {
+      std::cout << "define " << name.lexeme << " depth " << depth << "\n";
       maybeLocal->initialized = true;
     }
   }
@@ -95,14 +99,17 @@ class Scope {
   }
 
   void debug() const {
+    std::cout << "Locals depth " << locals_.size();
+
     for (const auto& scope : locals_) {
-      std::cout << "scope ===> \n";
-      for (const auto& value : scope) {
-        std::cout << ":=> " << value.name.lexeme << "\n";
+      std::cout << "scope ===> " << scope.size() << "\n";
+      for (const auto& local : scope) {
+        std::cout << ":=> " << local.name.lexeme << "\n";
       }
       std::cout << "<===\n";
     }
   }
+  void clear() { locals_.clear(); }
 
  private:
   std::vector<std::vector<Local>> locals_;

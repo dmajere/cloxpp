@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "Scope.h"
 #include "Value.h"
 
 namespace lox {
@@ -41,12 +42,16 @@ enum class OpCode {
   LOOP,
   CALL,
   CLOSURE,
+  SET_UPVALUE,
+  GET_UPVALUE,
 };
 
 struct Chunk {
   std::vector<uint8_t> code;
   std::vector<Value> constants;
   std::vector<int> lines;
+  Chunk* parent = nullptr;
+  Scope scope;
 
   void addCode(const OpCode& c, int line) {
     code.push_back(static_cast<uint8_t>(c));

@@ -40,6 +40,7 @@ class Stack {
   size_t size() const { return stack_.size(); }
   auto begin() { return stack_.begin(); }
   auto end() { return stack_.end(); }
+  void reset() { stack_.clear(); }
 
  private:
   std::vector<lox::compiler::Value> stack_;

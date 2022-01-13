@@ -8,6 +8,13 @@ var cond;
 if (truthy) { cond = "defined"; }
 print cond;
 
+var global = "global";
+{ 
+    var local = "local";
+    print global;
+    print local;
+}
+
 var counter = 1;
 while (counter < 5) {counter = counter + 1; print "while " + counter;}
 
