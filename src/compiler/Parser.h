@@ -80,7 +80,7 @@ class Parser {
     return chunk.scope.find(name);
   }
   size_t resolveUpvalue(Chunk& chunk, const Token& name);
-  size_t addUpvalue(Chunk& chunk, uint8_t local, bool isLocal);
+  int addUpvalue(Chunk& chunk, uint8_t index, bool isLocal);
   uint8_t argumentList(Chunk& chunk, int depth);
 
   void parsePrecedence(Chunk& chunk, int depth, const Precedence& precedence);

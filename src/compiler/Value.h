@@ -13,12 +13,14 @@ struct Chunk;
 struct FunctionObject;
 struct NativeFunctionObject;
 struct ClosureObject;
+struct UpvalueObject;
 using Function = std::shared_ptr<FunctionObject>;
 using NativeFunction = std::shared_ptr<NativeFunctionObject>;
 using Closure = std::shared_ptr<ClosureObject>;
+using UpvalueValue = std::shared_ptr<UpvalueObject>;
 
 using Value = std::variant<double, bool, std::monostate, std::string, Function,
-                           NativeFunction, Closure>;
+                           NativeFunction, Closure, UpvalueValue>;
 
 std::ostream& operator<<(std::ostream& os, const Value& v);
 
@@ -27,6 +29,7 @@ class FunctionObject {
   const int arity_;
   const std::string name_;
   std::unique_ptr<Chunk> chunk_;
+  int upvalueCount{0};
 
  public:
   FunctionObject(int arity, const std::string& name,
@@ -48,6 +51,15 @@ class ClosureObject {
  public:
   explicit ClosureObject(Function function) : function(function) {}
   Function function;
+  std::vector<UpvalueValue> upvalues;
+};
+
+struct UpvalueObject {
+  Value* location;
+  Value closed;
+  UpvalueValue next;
+  UpvalueObject(Value* slot)
+      : location(slot), closed(std::monostate()), next(nullptr) {}
 };
 
 struct OutputVisitor {
@@ -64,6 +76,9 @@ struct OutputVisitor {
     std::cout << "closure " << closure->function->name();
   }
   void operator()(NativeFunction func) const { std::cout << "native function"; }
+  void operator()(UpvalueValue upvalue) const {
+    std::cout << "upvalue " << upvalue->location;
+  }
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Value& v) {

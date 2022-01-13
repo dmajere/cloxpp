@@ -34,6 +34,7 @@ Closure Parser::run() {
   }
   if (!hadError_) {
     chunk->scope.clear();
+    chunk->upvalues.clear();
     auto func =
         std::make_shared<FunctionObject>(0, "<script>", std::move(chunk));
     return std::make_shared<ClosureObject>(std::move(func));
@@ -97,10 +98,8 @@ void Parser::function(Chunk& chunk, const std::string& name, int depth) {
     } while (scanner_->match(Token::Type::COMMA));
   }
   scanner_->consume(Token::Type::RIGHT_PAREN, kExpectRightParen);
-
   scanner_->consume(Token::Type::LEFT_BRACE, kExpectLeftBrace);
-  std::cout << "debug at fuction decl \n";
-  function_chunk->scope.debug();
+
   block(*function_chunk, scope);
   if (function_chunk->code.empty() ||
       function_chunk->code.back() != static_cast<uint8_t>(OpCode::RETURN)) {
@@ -111,6 +110,10 @@ void Parser::function(Chunk& chunk, const std::string& name, int depth) {
       std::make_shared<FunctionObject>(arity, name, std::move(function_chunk));
 
   emitConstant(chunk, func, OpCode::CLOSURE, line);
+  // for (auto& upvalue : chunk.upvalues) {
+  //   chunk.addOperand(upvalue.isLocal ? 1 : 0);
+  //   chunk.addOperand(upvalue.index);
+  // }
   // endScope(chunk, scope);
 }
 void Parser::call(Chunk& chunk, int depth, bool canAssign) {
@@ -429,19 +432,37 @@ size_t Parser::resolveUpvalue(Chunk& chunk, const Token& name) {
   if (chunk.parent == nullptr) {
     return -1;
   }
-  auto local = resolveLocal(chunk, name);
+  auto local = resolveLocal(*(chunk.parent), name);
   if (local != -1) {
     return addUpvalue(chunk, static_cast<uint8_t>(local), true);
   }
+
+  int upvalue = resolveUpvalue(*(chunk.parent), name);
+  if (upvalue != -1) {
+    return addUpvalue(chunk, static_cast<uint8_t>(upvalue), false);
+  }
   return -1;
 }
-size_t Parser::addUpvalue(Chunk& chunk, uint8_t local, bool isLocal) {
-  return -1;
+
+int Parser::addUpvalue(Chunk& chunk, uint8_t index, bool isLocal) {
+  for (size_t i = 0; i < chunk.upvalues.size(); i++) {
+    if (chunk.upvalues[i].index == index &&
+        chunk.upvalues[i].isLocal == isLocal) {
+      return static_cast<int>(i);
+    }
+  }
+
+  if (chunk.upvalues.size() == 255) {
+    parse_error(scanner_->current(), "Too many closure variables in function.");
+    return 0;
+  }
+
+  chunk.upvalues.emplace_back(Upvalue(index, isLocal));
+  return chunk.upvalues.size() - 1;
 }
 
 void Parser::namedVariable(Chunk& chunk, const Token& token, bool canAssign,
                            int depth) {
-  chunk.scope.debug();
   int offset = resolveLocal(chunk, token);
   int upvalue = resolveUpvalue(chunk, token);
   std::cout << "Variable " << token.lexeme << " local " << offset << " upvalue "

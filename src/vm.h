@@ -266,6 +266,11 @@ class VM {
           it->second = std::move(stack_.peek(0));
           break;
         }
+        case OpCode::GET_UPVALUE:
+        case OpCode::SET_UPVALUE: {
+          uint8_t slot = read_byte();
+          break;
+        }
         case OpCode::GET_GLOBAL: {
           auto name = read_string();
           auto it = globals_.find(name);

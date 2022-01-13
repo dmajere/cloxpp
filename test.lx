@@ -1,3 +1,4 @@
+/*
 var a = 1;
 var b = 2;
 var c = a + b - 3 * 4 / 5;
@@ -27,3 +28,14 @@ fun test2(param) { print "arg " + param;}
 test2("parameter");
 
 print clock();
+*/
+
+fun outer () {
+    var x = "outer";
+    fun inner() {
+        print x;
+    }
+    return inner;
+}
+var out = outer();
+out();

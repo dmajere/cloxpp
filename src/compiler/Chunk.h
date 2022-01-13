@@ -46,12 +46,21 @@ enum class OpCode {
   GET_UPVALUE,
 };
 
+class Upvalue {
+ public:
+  uint8_t index;
+  bool isLocal;
+  explicit Upvalue(uint8_t index, bool isLocal)
+      : index(index), isLocal(isLocal) {}
+};
+
 struct Chunk {
   std::vector<uint8_t> code;
   std::vector<Value> constants;
   std::vector<int> lines;
   Chunk* parent = nullptr;
   Scope scope;
+  std::vector<Upvalue> upvalues;
 
   void addCode(const OpCode& c, int line) {
     code.push_back(static_cast<uint8_t>(c));

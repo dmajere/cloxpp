@@ -83,6 +83,15 @@ class Disassembler {
         value(chunk.constants[chunk.code[++offset]]);
         std::cout << "'";
         break;
+      case OpCode::GET_UPVALUE:
+        std::cout << "GET_UPVALUE '";
+        offset++;
+        break;
+      case OpCode::SET_UPVALUE: {
+        std::cout << "SET_UPVALUE '";
+        offset++;
+        break;
+      }
       case OpCode::GET_GLOBAL:
         std::cout << "GET_GLOBAL '";
         value(chunk.constants[chunk.code[++offset]]);
