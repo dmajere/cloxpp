@@ -34,12 +34,12 @@ namespace lox {
 namespace lang {
 
 struct CallFrame {
-  CallFrame(int ip, unsigned long offset, Function function)
-      : ip(ip), stackOffset(offset), function(std::move(function)) {}
+  CallFrame(int ip, unsigned long offset, Closure closure)
+      : ip(ip), stackOffset(offset), closure(std::move(closure)) {}
 
   int ip;
   unsigned long stackOffset;
-  Function function;
+  Closure closure;
 };
 
 class VM {
@@ -85,7 +85,7 @@ class VM {
     }
 
     unsigned long offset = stack_.size() - argCount - 1;
-    frames_.emplace_back(CallFrame(0, offset, closure->function));
+    frames_.emplace_back(CallFrame(0, offset, closure));
     return true;
   }
 
@@ -139,21 +139,21 @@ class VM {
 
   InterpretResult run(Chunk& chunk) {
     auto read_byte = [this]() -> uint8_t {
-      return this->frames_.back().function->chunk().code.at(
+      return this->frames_.back().closure->function->chunk().code.at(
           this->frames_.back().ip++);
     };
     auto read_short = [this]() -> uint16_t {
       this->frames_.back().ip += 2;
-      uint8_t left = this->frames_.back().function->chunk().code.at(
+      uint8_t left = this->frames_.back().closure->function->chunk().code.at(
           this->frames_.back().ip - 2);
-      uint8_t right = this->frames_.back().function->chunk().code.at(
+      uint8_t right = this->frames_.back().closure->function->chunk().code.at(
           this->frames_.back().ip - 1);
       return (uint16_t)(left << 8 | right);
     };
     auto read_constant = [this]() -> Value {
       return this->frames_.back()
-          .function->chunk()
-          .constants[this->frames_.back().function->chunk().code.at(
+          .closure->function->chunk()
+          .constants[this->frames_.back().closure->function->chunk().code.at(
               this->frames_.back().ip++)];
     };
     auto read_string = [&read_constant]() -> std::string {
