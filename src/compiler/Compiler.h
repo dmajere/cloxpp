@@ -15,7 +15,7 @@ class Compiler {
  public:
   Compiler() {}
 
-  Function compile(const std::string& code) {
+  Closure compile(const std::string& code) {
     Chunk chunk;
     auto parser = Parser(code, FLAGS_scanner, scope_);
     return parser.run();

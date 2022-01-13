@@ -12,11 +12,13 @@ namespace compiler {
 struct Chunk;
 struct FunctionObject;
 struct NativeFunctionObject;
+struct ClosureObject;
 using Function = std::shared_ptr<FunctionObject>;
 using NativeFunction = std::shared_ptr<NativeFunctionObject>;
+using Closure = std::shared_ptr<ClosureObject>;
 
 using Value = std::variant<double, bool, std::monostate, std::string, Function,
-                           NativeFunction>;
+                           NativeFunction, Closure>;
 
 std::ostream& operator<<(std::ostream& os, const Value& v);
 
@@ -42,6 +44,12 @@ struct NativeFunctionObject {
   NativeFn function;
 };
 
+class ClosureObject {
+ public:
+  explicit ClosureObject(Function function) : function(function) {}
+  Function function;
+};
+
 struct OutputVisitor {
   void operator()(const double d) const { std::cout << d; }
   void operator()(const bool b) const { std::cout << (b ? "true" : "false"); }
@@ -51,6 +59,9 @@ struct OutputVisitor {
   }
   void operator()(Function func) const {
     std::cout << "function " << func->name();
+  }
+  void operator()(Closure closure) const {
+    std::cout << "closure " << closure->function->name();
   }
   void operator()(NativeFunction func) const { std::cout << "native function"; }
 };

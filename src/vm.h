@@ -52,12 +52,12 @@ class VM {
   ~VM() = default;
 
   InterpretResult interpret(const std::string& code) {
-    lox::compiler::Function func = compiler_->compile(code);
-    if (func) {
+    auto closure = compiler_->compile(code);
+    if (closure && closure->function) {
       try {
-        stack_.push(func);
-        call(func, 0);
-        auto interpret_result = run(func->chunk());
+        stack_.push(closure->function);
+        call(closure->function, 0);
+        auto interpret_result = run(closure->function->chunk());
         return interpret_result;
       } catch (std::runtime_error&) {
         return InterpretResult::RUNTIME_ERROR;
@@ -111,6 +111,9 @@ class VM {
 
     bool operator()(const Function& func) const {
       return vm->call(func, argCount);
+    }
+    bool operator()(const Closure& closure) const {
+      return vm->call(closure->function, argCount);
     }
     bool operator()(const NativeFunction& native) const {
       auto result = native->function(argCount, vm->stack()->end() - argCount);

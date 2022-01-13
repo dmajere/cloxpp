@@ -18,3 +18,5 @@ test();
 
 fun test2(param) { print "arg " + param;}
 test2("parameter");
+
+print clock();

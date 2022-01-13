@@ -36,7 +36,7 @@ class Parser {
   Parser(const std::string& source, const std::string& scanner, Scope& scope)
       : scanner_{ScannerFactory::get(scanner)(source)}, scope_{scope} {}
 
-  Function run();
+  Closure run();
 
  private:
   std::unique_ptr<Scanner> scanner_;

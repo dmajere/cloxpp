@@ -15,7 +15,7 @@ constexpr std::string_view kExpectSemicolon = "Expect ';' after statement.";
 namespace lox {
 namespace compiler {
 
-Function Parser::run() {
+Closure Parser::run() {
   auto chunk = std::make_unique<Chunk>();
   try {
     while (!isAtEnd()) {
@@ -33,7 +33,9 @@ Function Parser::run() {
     scanner_->synchronize();
   }
   if (!hadError_) {
-    return std::make_shared<FunctionObject>(0, "<script>", std::move(chunk));
+    auto func =
+        std::make_shared<FunctionObject>(0, "<script>", std::move(chunk));
+    return std::make_shared<ClosureObject>(std::move(func));
   }
   return nullptr;
 }
