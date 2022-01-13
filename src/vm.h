@@ -313,6 +313,10 @@ class VM {
           }
           break;
         }
+        case OpCode::CLOSE_UPVALUE: {
+          
+          break;
+        }
         case OpCode::CONSTANT: {
           stack_.push(read_constant());
           break;

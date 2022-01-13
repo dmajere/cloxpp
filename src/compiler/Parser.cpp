@@ -105,16 +105,10 @@ void Parser::function(Chunk& chunk, const std::string& name, int depth) {
       function_chunk->code.back() != static_cast<uint8_t>(OpCode::RETURN)) {
     emitReturnNil(*function_chunk);
   }
-
   Function func =
       std::make_shared<FunctionObject>(arity, name, std::move(function_chunk));
 
   emitConstant(chunk, func, OpCode::CLOSURE, line);
-  // for (auto& upvalue : chunk.upvalues) {
-  //   chunk.addOperand(upvalue.isLocal ? 1 : 0);
-  //   chunk.addOperand(upvalue.index);
-  // }
-  // endScope(chunk, scope);
 }
 void Parser::call(Chunk& chunk, int depth, bool canAssign) {
   uint8_t argCount = argumentList(chunk, depth);
@@ -306,11 +300,18 @@ void Parser::startScope(Chunk& chunk, int depth) {
 }
 
 void Parser::endScope(Chunk& chunk, int depth) {
-  auto removed_vars = chunk.scope.pop_scope(depth);
   int line = scanner_->previous().line;
-  while (removed_vars--) {
-    chunk.addCode(OpCode::POP, line);
+  auto& locals = chunk.scope.locals(depth);
+  for (const auto& constant : locals) {
+    if (constant.isCaptured) {
+      chunk.addCode(OpCode::CLOSE_UPVALUE, line);
+
+    } else {
+      chunk.addCode(OpCode::POP, line);
+    }
   }
+
+  chunk.scope.pop_scope(depth);
 }
 const Token& Parser::parseVariable(const std::string& error_message) {
   return scanner_->consume(Token::Type::IDENTIFIER, error_message);
@@ -432,6 +433,7 @@ size_t Parser::resolveUpvalue(Chunk& chunk, const Token& name) {
   }
   auto local = resolveLocal(*(chunk.parent), name);
   if (local != -1) {
+    chunk.parent->scope.capture(name);
     return addUpvalue(chunk, static_cast<uint8_t>(local), true);
   }
 

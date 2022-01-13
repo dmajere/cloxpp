@@ -150,6 +150,9 @@ class Disassembler {
       case OpCode::POP:
         std::cout << "POP ";
         break;
+      case OpCode::CLOSE_UPVALUE:
+        std::cout << "CLOSE_UPVALUE ";
+        break;
       default:
         std::cout << "UNKNOWN " << chunk.code[offset];
         break;

@@ -44,6 +44,7 @@ enum class OpCode {
   CLOSURE,
   SET_UPVALUE,
   GET_UPVALUE,
+  CLOSE_UPVALUE,
 };
 
 class Upvalue {

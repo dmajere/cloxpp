@@ -12,11 +12,12 @@ namespace compiler {
 
 struct Local {
   Local(const Token& name, int position)
-      : name(name), initialized{false}, position{position} {}
+      : name(name), initialized{false}, position{position}, isCaptured{false} {}
 
   const Token name;
   bool initialized;
   int position;
+  bool isCaptured;
 };
 
 class Scope {
@@ -45,6 +46,26 @@ class Scope {
     if (maybeLocal) {
       maybeLocal->initialized = true;
     }
+  }
+  void capture(const Token& name) {
+    int depth = locals_.size();
+    Local* maybeLocal = nullptr;
+
+    while (!maybeLocal) {
+      depth--;
+      if (depth < 0) {
+        break;
+      }
+      maybeLocal = find(name, depth);
+    }
+
+    if (maybeLocal) {
+      maybeLocal->isCaptured = true;
+      return;
+    }
+
+    debug();
+    scope_error(name, "unknown variable");
   }
 
   void push_scope(int depth) {
@@ -107,6 +128,7 @@ class Scope {
     }
   }
   void clear() { locals_.clear(); }
+  std::vector<Local>& locals(int depth) { return locals_[depth]; }
 
  private:
   std::vector<std::vector<Local>> locals_;

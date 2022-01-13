@@ -1,4 +1,3 @@
-/*
 var a = 1;
 var b = 2;
 var c = a + b - 3 * 4 / 5;
@@ -28,7 +27,6 @@ fun test2(param) { print "arg " + param;}
 test2("parameter");
 
 print clock();
-*/
 
 fun outer () {
     var x = "outer";
@@ -40,4 +38,18 @@ fun outer () {
 var out = outer();
 out();
 
-print nil;
+var globalGet;
+var globalSet;
+fun main() {
+    var a = "initial";
+
+    fun set(param) { a = param; }
+    fun get() {print a;}
+
+    globalSet = set;
+    globalGet = get;
+}
+main();
+globalGet();
+globalSet("updated");
+globalGet();
