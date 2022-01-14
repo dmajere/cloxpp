@@ -31,7 +31,7 @@ class Scope {
     if (!scope.empty()) {
       position = scope.back().position + 1;
     } else {
-      position = 0;
+      position = 1;
     }
 
     auto maybeDefined = find(name, depth);

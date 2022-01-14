@@ -108,14 +108,6 @@ void Parser::function(Chunk& chunk, const std::string& name, int depth) {
   int scope = depth + 1;
 
   startScope(*function_chunk, scope);
-  if (function_chunk->isClassChunk) {
-    Token thisToken(Token::Type::THIS, "this", scanner_->previous().line);
-    function_chunk->scope.declare(thisToken, scope);
-    function_chunk->scope.initialize(thisToken, scope);
-  } else {
-    function_chunk->scope.declare(scanner_->previous(), scope);
-    function_chunk->scope.initialize(scanner_->previous(), scope);
-  }
 
   scanner_->consume(Token::Type::LEFT_PAREN, kExpectLeftParen);
   int arity = 0;
@@ -254,8 +246,6 @@ void Parser::forStatement(Chunk& chunk, int depth) {
   int scope = depth + 1;
   startScope(chunk, scope);
 
-  chunk.scope.declare(scanner_->previous(), scope);
-  chunk.scope.initialize(scanner_->previous(), scope);
   scanner_->consume(Token::Type::LEFT_PAREN, kExpectLeftParen);
 
   // init
@@ -350,7 +340,7 @@ void Parser::this_(Chunk& chunk, int depth, bool canAssign) {
   if (!chunk.isClassChunk) {
     parse_error(scanner_->previous(), "Cant use this outside of class");
   }
-  variable(chunk, depth, false);
+  emitNamedVariable(chunk, OpCode::GET_LOCAL, 0, scanner_->previous().line);
 }
 
 void Parser::startScope(Chunk& chunk, int depth) {
