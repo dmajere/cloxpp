@@ -21,7 +21,8 @@ const std::vector<std::string> codes{
     "GET_GLOBAL",    "SET_GLOBAL",   "GET_LOCAL",    "SET_LOCAL",
     "JUMP_IF_FALSE", "JUMP",         "LOOP",         "CALL",
     "CLOSURE",       "SET_UPVALUE",  "GET_UPVALUE",  "CLOSE_UPVALUE",
-    "CLASS",         "SET_PROPERTY", "GET_PROPERTY", "METHOD"};
+    "CLASS",         "SET_PROPERTY", "GET_PROPERTY", "METHOD",
+    "INVOKE"};
 
 enum class OpCode {
   CONSTANT,
@@ -60,6 +61,7 @@ enum class OpCode {
   SET_PROPERTY,
   GET_PROPERTY,
   METHOD,
+  INVOKE,
 };
 
 class Upvalue {

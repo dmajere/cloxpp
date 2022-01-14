@@ -5,6 +5,7 @@
 #include <iostream>
 #include <stack>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <variant>
 
@@ -18,6 +19,8 @@
 DECLARE_bool(debug);
 DECLARE_bool(debug_stack);
 #define FRAMES_MAX 64
+
+constexpr std::string_view kKlassConstructorName = "init";
 
 using namespace lox::compiler;
 
@@ -125,8 +128,16 @@ class VM {
     }
     bool operator()(const Class& klass) const {
       Instance instance = std::make_shared<InstanceObject>(klass);
-      vm.stack_.pop();
-      vm.stack_.push(instance);
+      vm.stack_.set(vm.stack_.size() - argCount - 1, instance);
+
+      auto found = klass->methods.find(std::string{kKlassConstructorName});
+      if (found != klass->methods.end()) {
+        auto initializer = found->second;
+        return vm.call(initializer, argCount);
+      } else if (argCount != 0) {
+        vm.runtimeError("Expected zero argument");
+        return false;
+      }
       return true;
     }
     bool operator()(const BoundMethod& bound) const {

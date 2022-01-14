@@ -95,7 +95,11 @@ void Parser::classDeclaration(Chunk& chunk, int depth) {
 
 void Parser::methodDeclaration(Chunk& chunk, int depth) {
   auto method = scanner_->consume(Token::Type::IDENTIFIER, kExpectIdentifier);
-  function(chunk, method.lexeme, FunctionType::METHOD, depth);
+
+  function(chunk, method.lexeme,
+           method.lexeme == "init" ? FunctionType::CONSTRUCTOR
+                                   : FunctionType::METHOD,
+           depth);
   emitConstant(chunk, method.lexeme, OpCode::METHOD, method.line);
 }
 
@@ -127,9 +131,19 @@ void Parser::function(Chunk& chunk, const std::string& name,
   scanner_->consume(Token::Type::LEFT_BRACE, kExpectLeftBrace);
 
   block(*function_chunk, scope);
-  if (!function_chunk->code.empty() &&
-      function_chunk->code.back() != static_cast<uint8_t>(OpCode::RETURN)) {
-    emitReturnNil(*function_chunk);
+  if (!function_chunk->code.empty()) {
+    if (type == FunctionType::CONSTRUCTOR) {
+      if (function_chunk->code.back() == static_cast<uint8_t>(OpCode::RETURN)) {
+        parse_error(scanner_->previous(),
+                    "class init function should have no return statement");
+      }
+      function_chunk->addCode(OpCode::GET_LOCAL, line);
+      function_chunk->addOperand(0);
+      emitReturn(*function_chunk);
+    } else if (function_chunk->code.back() !=
+               static_cast<uint8_t>(OpCode::RETURN)) {
+      emitReturnNil(*function_chunk);
+    }
   }
   Function func =
       std::make_shared<FunctionObject>(arity, name, std::move(function_chunk));

@@ -83,3 +83,10 @@ Test("Set class property", assertEq(TestInstance.testField, "testValue"));
 Test("Call class method", assertEq(TestInstance.testMethod(), "testMethod"));
 TestInstance.setField("setField");
 Test("Class this", assertEq(TestInstance.getField(), "setField"));
+
+class Initialized {
+    init(value) {
+        this.field = value;
+    }
+}
+Test("Class initializer", assertEq(Initialized("value").field, "value"));
