@@ -14,13 +14,19 @@ struct FunctionObject;
 struct NativeFunctionObject;
 struct ClosureObject;
 struct UpvalueObject;
+struct ClassObject;
+struct InstanceObject;
+
 using Function = std::shared_ptr<FunctionObject>;
 using NativeFunction = std::shared_ptr<NativeFunctionObject>;
 using Closure = std::shared_ptr<ClosureObject>;
 using UpvalueValue = std::shared_ptr<UpvalueObject>;
+using Class = std::shared_ptr<ClassObject>;
+using Instance = std::shared_ptr<InstanceObject>;
 
-using Value = std::variant<double, bool, std::monostate, std::string, Function,
-                           NativeFunction, Closure, UpvalueValue>;
+using Value =
+    std::variant<double, bool, std::monostate, std::string, Function,
+                 NativeFunction, Closure, UpvalueValue, Class, Instance>;
 
 std::ostream& operator<<(std::ostream& os, const Value& v);
 
@@ -62,6 +68,18 @@ struct UpvalueObject {
       : location(slot), closed(std::monostate()), next(nullptr) {}
 };
 
+struct ClassObject {
+  ClassObject(std::string& name) : name(std::move(name)) {}
+
+  std::string name;
+};
+
+struct InstanceObject {
+  InstanceObject(Class klass) : klass{std::move(klass)} {}
+  Class klass;
+  std::unordered_map<std::string, Value> fields;
+};
+
 struct OutputVisitor {
   void operator()(const double d) const { std::cout << d; }
   void operator()(const bool b) const { std::cout << (b ? "true" : "false"); }
@@ -78,6 +96,10 @@ struct OutputVisitor {
   void operator()(NativeFunction func) const { std::cout << "native function"; }
   void operator()(UpvalueValue upvalue) const {
     std::cout << "upvalue " << upvalue->location;
+  }
+  void operator()(Class klass) const { std::cout << "class " << klass->name; }
+  void operator()(Instance instance) const {
+    std::cout << "instance " << instance->klass->name;
   }
 };
 

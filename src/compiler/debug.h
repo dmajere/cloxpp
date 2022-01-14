@@ -61,6 +61,11 @@ class Disassembler {
         std::cout << "CLOSURE ";
         value(chunk.constants[chunk.code[++offset]]);
         break;
+      case OpCode::CLASS:
+        std::cout << "CLASS '";
+        value(chunk.constants[chunk.code[++offset]]);
+        std::cout << "'";
+        break;
       case OpCode::RETURN:
         std::cout << "RETURN";
         break;
@@ -92,6 +97,16 @@ class Disassembler {
         offset++;
         break;
       }
+      case OpCode::GET_PROPERTY:
+        std::cout << "GET_PROPERTY '";
+        value(chunk.constants[chunk.code[++offset]]);
+        std::cout << "'";
+        break;
+      case OpCode::SET_PROPERTY:
+        std::cout << "SET_PROPERTY '";
+        value(chunk.constants[chunk.code[++offset]]);
+        std::cout << "'";
+        break;
       case OpCode::GET_GLOBAL:
         std::cout << "GET_GLOBAL '";
         value(chunk.constants[chunk.code[++offset]]);

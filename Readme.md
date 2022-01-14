@@ -18,3 +18,4 @@ This VM is ported from the C to C++.
 24. Calls and Functions.
 25. Closures.
 26. Garbage Collection. (not implemented, using `shared_ptr` instead for ref counting)
+27. Classes and Instances.

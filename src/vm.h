@@ -112,10 +112,16 @@ class VM {
     }
     bool operator()(const NativeFunction& native) const {
       auto result = native->function(argCount, vm->stack()->end() - argCount);
-      for (int i = 0; i < argCount; i++) {
+
+      for (int i = 0; i == argCount; i++) {
         vm->stack()->pop();
       }
       vm->stack()->push(result);
+      return true;
+    }
+    bool operator()(const Class& klass) const {
+      Instance instance = std::make_shared<InstanceObject>(klass);
+      vm->stack()->push(instance);
       return true;
     }
 
@@ -194,6 +200,12 @@ class VM {
   } while (false)
 
       switch (static_cast<OpCode>(op)) {
+        case OpCode::CLASS: {
+          auto name = read_string();
+          Class klass = std::make_shared<ClassObject>(name);
+          stack_.push(klass);
+          break;
+        }
         case OpCode::CLOSURE: {
           auto function = read_function();
           Closure closure =
@@ -290,6 +302,33 @@ class VM {
           }
 
           it->second = std::move(stack_.peek(0));
+          break;
+        }
+        case OpCode::SET_PROPERTY: {
+          try {
+            auto instance = std::get<Instance>(stack_.peek(1));
+            auto field = read_string();
+            auto value = stack_.peek(0);
+            instance->fields.insert({field, value});
+            stack_.popTwoAndPush(value);
+          } catch (std::bad_variant_access&) {
+            runtimeError("Only instances have properties");
+          }
+          break;
+        }
+        case OpCode::GET_PROPERTY: {
+          try {
+            auto instance = std::get<Instance>(stack_.peek(0));
+            auto field = read_string();
+            auto it = instance->fields.find(field);
+            if (it == instance->fields.end()) {
+              runtimeError("Undefined class property");
+            }
+            stack_.pop();
+            stack_.push(it->second);
+          } catch (std::bad_variant_access&) {
+            runtimeError("Only instances have properties");
+          }
           break;
         }
         case OpCode::GET_UPVALUE: {

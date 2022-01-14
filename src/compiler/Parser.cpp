@@ -1,16 +1,14 @@
 #include "Parser.h"
 
-#include <gflags/gflags.h>
-
 #include "../RuntimeError.h"
 #include "ParseError.h"
 
-DECLARE_bool(debug);
 constexpr std::string_view kExpectLeftParen = "Expect '(' after expression.";
 constexpr std::string_view kExpectRightParen = "Expect ')' after expression.";
 constexpr std::string_view kExpectLeftBrace = "Expect '{' after expression.";
 constexpr std::string_view kExpectRightBrace = "Expect '}' after expression.";
 constexpr std::string_view kExpectSemicolon = "Expect ';' after statement.";
+constexpr std::string_view kExpectIdentifier = "Expect identifier.";
 
 namespace lox {
 namespace compiler {
@@ -47,6 +45,8 @@ void Parser::declaration(Chunk& chunk, int depth) {
     variableDeclaration(chunk, depth);
   } else if (scanner_->match(Token::Type::FUN)) {
     functionDeclaration(chunk, depth);
+  } else if (scanner_->match(Token::Type::CLASS)) {
+    classDeclaration(chunk, depth);
   } else {
     statement(chunk, depth);
   }
@@ -75,6 +75,17 @@ void Parser::functionDeclaration(Chunk& chunk, int depth) {
   defineVariable(chunk, global, depth);
 }
 
+void Parser::classDeclaration(Chunk& chunk, int depth) {
+  auto identifier =
+      scanner_->consume(Token::Type::IDENTIFIER, kExpectIdentifier);
+  declareVariable(chunk, identifier, depth);
+  emitConstant(chunk, identifier.lexeme, OpCode::CLASS, identifier.line);
+  defineVariable(chunk, identifier, depth);
+
+  scanner_->consume(Token::Type::LEFT_BRACE, kExpectLeftBrace);
+  scanner_->consume(Token::Type::RIGHT_BRACE, kExpectRightBrace);
+}
+
 void Parser::function(Chunk& chunk, const std::string& name, int depth) {
   int line = scanner_->previous().line;
   auto function_chunk = std::make_unique<Chunk>();
@@ -101,7 +112,7 @@ void Parser::function(Chunk& chunk, const std::string& name, int depth) {
   scanner_->consume(Token::Type::LEFT_BRACE, kExpectLeftBrace);
 
   block(*function_chunk, scope);
-  if (function_chunk->code.empty() ||
+  if (!function_chunk->code.empty() &&
       function_chunk->code.back() != static_cast<uint8_t>(OpCode::RETURN)) {
     emitReturnNil(*function_chunk);
   }
@@ -293,6 +304,19 @@ void Parser::or_(Chunk& chunk, int depth, bool canAssign) {
 
   parsePrecedence(chunk, depth, Precedence::OR);
   patchJump(chunk, endJump);
+}
+
+void Parser::dot(Chunk& chunk, int depth, bool canAssign) {
+  auto identifier =
+      scanner_->consume(Token::Type::IDENTIFIER, kExpectIdentifier);
+  if (canAssign && scanner_->match(Token::Type::EQUAL)) {
+    expression(chunk, depth);
+    emitConstant(chunk, identifier.lexeme, OpCode::SET_PROPERTY,
+                 identifier.line);
+  } else {
+    emitConstant(chunk, identifier.lexeme, OpCode::GET_PROPERTY,
+                 identifier.line);
+  }
 }
 
 void Parser::startScope(Chunk& chunk, int depth) {

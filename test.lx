@@ -62,3 +62,11 @@ main();
 globalGet();
 globalSet("updated");
 globalGet();
+
+
+class TestClass {}
+print TestClass;
+var TestInstance = TestClass();
+print TestInstance;
+TestInstance.testField = "testValue";
+print TestInstance.testField;

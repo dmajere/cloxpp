@@ -50,6 +50,7 @@ class Parser {
   void end(Chunk& chunk);
   void variableDeclaration(Chunk& chunk, int depth);
   void functionDeclaration(Chunk& chunk, int depth);
+  void classDeclaration(Chunk& chunk, int depth);
   void statement(Chunk& chunk, int depth);
   void printStatement(Chunk& chunk, int depth);
   void block(Chunk& chunk, int depth);
@@ -70,6 +71,7 @@ class Parser {
   void and_(Chunk& chunk, int depth, bool canAssign);
   void or_(Chunk& chunk, int depth, bool canAssign);
   void call(Chunk& chunk, int depth, bool canAssign);
+  void dot(Chunk& chunk, int depth, bool canAssign);
 
   const Token& parseVariable(const std::string& error_message);
   void declareVariable(Chunk& chunk, const Token& name, int depth);
@@ -173,6 +175,9 @@ class Parser {
     auto call = [this](Chunk& chunk, int depth, bool canAssign) {
       this->call(chunk, depth, canAssign);
     };
+    auto dot = [this](Chunk& chunk, int depth, bool canAssign) {
+      this->dot(chunk, depth, canAssign);
+    };
 
     static const std::vector<ParseRule> rules = {
         {grouping, call, Precedence::CALL},         // LEFT_PAREN
@@ -180,7 +185,7 @@ class Parser {
         {nullptr, nullptr, Precedence::NONE},       // LEFT_BRACE
         {nullptr, nullptr, Precedence::NONE},       // RIGHT_BRACE
         {nullptr, nullptr, Precedence::NONE},       // COMMA
-        {nullptr, nullptr, Precedence::NONE},       // DOT
+        {nullptr, dot, Precedence::CALL},           // DOT
         {unary, binary, Precedence::TERM},          // MINUS
         {nullptr, binary, Precedence::TERM},        // PLUS
         {nullptr, nullptr, Precedence::NONE},       // COLON
