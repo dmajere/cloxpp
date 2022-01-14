@@ -1,82 +1,85 @@
-var a = 1;
-var b = 2;
-var c = a + b - 3 * 4 / 5;
-print c;
+fun Test(name, assertion) {
+    print name + " => " + assertion();
+}
 
+fun assertEq(a, b) {
+    fun inner() {
+        return a == b;
+    }
+    return inner;
+}
+fun bool(a) {
+    if(a) {
+        return true;
+    }
+    return false;
+}
+fun assertTrue(a) {
+    return assertEq(bool(a), true);
+}
 
-var truthy = true;
-var cond;
-if (truthy) { cond = "defined"; }
-print cond;
+var arithmetic = 1 + 2 - 3 * 4;
+Test("Basic arithmetic", assertEq(arithmetic, -9));
+
+var conditionExpected;
+if ("string is true") {
+    conditionExpected = true;
+}
+Test("Basic condition", assertEq(conditionExpected, true));
 
 var global = "global";
 {
     var local = "local";
-    print global;
-    print local;
+    Test("Access global from scope", assertEq(global, "global"));
+    Test("Access local from scope", assertEq(local, "local"));
 }
 
-var counter = 1;
-while (counter < 5) {counter = counter + 1; print "while " + counter;}
+var whileCounter = 1;
+while (whileCounter < 5) {whileCounter = whileCounter + 1;}
+Test("While loop", assertEq(whileCounter, 5));
 
-for (var idx = 0; idx < 3; idx = idx + 1 ) { print "for " + idx;}
+var forCounter;
+for (forCounter = 0; forCounter < 3; forCounter = forCounter + 1 ) { true;}
+Test("For loop", assertEq(forCounter, 3));
 
-fun test() { print "test"; }
-test();
+Test("Native function", assertTrue(clock()));
 
-fun test2(param) { print "arg " + param;}
-test2("parameter");
+var closureSetter;
+var closureFirst;
+var closureSecond;
+fun PoorClass() {
+    var first_ = "first";
+    var second_ = "second";
 
-print clock();
-
-fun outer () {
-    var x = "outer";
-    fun inner() {
-        print x;
-    }
-    return inner;
-}
-var out = outer();
-out();
-
-var globalGet;
-var globalSet;
-fun main() {
-    var first = "first";
-    var second = "second";
-    var third = "third";
-
-    fun set(param) { second = param; }
-
+    fun set(param) { second_ = param; }
+    fun first() {return first_;}
+    fun second() {return second_;}
     fun get() {
         print first;
         print second;
         print third;
     }
 
-    globalSet = set;
-    globalGet = get;
+    closureSetter = set;
+    closureFirst = first;
+    closureSecond = second;
 }
-main();
+PoorClass();
+Test("PoorClass: before update", assertEq(closureSecond(), "second"));
+closureSetter("third");
+Test("PoorClass: after update", assertEq(closureSecond(), "third"));
+Test("PoorClass: static getter ", assertEq(closureFirst(), "first"));
 
-globalGet();
-globalSet("updated");
-globalGet();
 
 class TestClass {
-  testMethod() { print "testMethod call"; }
-  thisMethod() { print this; }
-
+  testMethod() { return "testMethod"; }
   setField(value) { this.field = value; }
   getField() { return this.field; }
-
 } 
-print TestClass;
+
 var TestInstance = TestClass();
 TestInstance.testField = "testValue";
-print TestInstance;
-print TestInstance.testField;
-TestInstance.testMethod();
-TestInstance.thisMethod();
+Test("Set class property", assertEq(TestInstance.testField, "testValue"));
+Test("Call class method", assertEq(TestInstance.testMethod(), "testMethod"));
 TestInstance.setField("setField");
-print TestInstance.getField();
+Test("Class this", assertEq(TestInstance.getField(), "setField"));

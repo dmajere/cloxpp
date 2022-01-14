@@ -33,8 +33,7 @@ Closure Parser::run() {
   if (!hadError_) {
     chunk->scope.clear();
     chunk->upvalues.clear();
-    auto func =
-        std::make_shared<FunctionObject>(0, "<script>", std::move(chunk));
+    auto func = std::make_shared<FunctionObject>(0, "script", std::move(chunk));
     return std::make_shared<ClosureObject>(std::move(func));
   }
   return nullptr;
@@ -71,7 +70,7 @@ void Parser::variableDeclaration(Chunk& chunk, int depth) {
 void Parser::functionDeclaration(Chunk& chunk, int depth) {
   const Token global = parseVariable("Expect variable name");
   declareVariable(chunk, global, depth);
-  function(chunk, global.lexeme, depth);
+  function(chunk, global.lexeme, FunctionType::FUNCTION, depth);
   defineVariable(chunk, global, depth);
 }
 
@@ -96,11 +95,12 @@ void Parser::classDeclaration(Chunk& chunk, int depth) {
 
 void Parser::methodDeclaration(Chunk& chunk, int depth) {
   auto method = scanner_->consume(Token::Type::IDENTIFIER, kExpectIdentifier);
-  function(chunk, method.lexeme, depth);
+  function(chunk, method.lexeme, FunctionType::METHOD, depth);
   emitConstant(chunk, method.lexeme, OpCode::METHOD, method.line);
 }
 
-void Parser::function(Chunk& chunk, const std::string& name, int depth) {
+void Parser::function(Chunk& chunk, const std::string& name,
+                      const FunctionType& type, int depth) {
   int line = scanner_->previous().line;
   auto function_chunk = std::make_unique<Chunk>();
   function_chunk->parent = &chunk;

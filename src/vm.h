@@ -94,13 +94,16 @@ class VM {
   }
   Stack* stack() { return &stack_; }
 
-  Stack stack_;
+  inline std::string to_string(const Value& v) {
+    return std::visit(StringVisitor(), v);
+  }
 
  private:
   std::unique_ptr<Compiler> compiler_;
   std::unordered_map<std::string, Value> globals_;
   std::vector<CallFrame> frames_;
   UpvalueValue openUpvalues{nullptr};
+  Stack stack_;
 
   struct CallVisitor {
     const int argCount;
@@ -143,6 +146,7 @@ class VM {
 
   void defineNative(const std::string& name, NativeFn function) {
     auto obj = std::make_shared<NativeFunctionObject>();
+    obj->name = name;
     obj->function = function;
     globals_[name] = obj;
   }
@@ -299,7 +303,7 @@ class VM {
             runtimeError("Variable already defined");
           }
 
-          globals_.insert({std::move(name), std::move(stack_.peek(0))});
+          globals_.insert({std::move(name), stack_.peek(0)});
           stack_.pop();
           break;
         }
@@ -399,26 +403,25 @@ class VM {
           break;
         }
         case OpCode::ADD: {
-          auto* stack = &stack_;
           auto success = std::visit(
               overloaded{
-                  [stack](const double& a, const double& b) -> bool {
-                    stack->popTwoAndPush(a + b);
+                  [this](const double& a, const double& b) -> bool {
+                    this->stack()->popTwoAndPush(a + b);
                     return true;
                   },
-                  [stack](const std::string& a, const std::string& b) -> bool {
-                    stack->popTwoAndPush(a + b);
+                  [this](const std::string& a, const std::string& b) -> bool {
+                    this->stack()->popTwoAndPush(a + b);
                     return true;
                   },
-                  [stack](const std::string& a, const double& b) -> bool {
-                    stack->popTwoAndPush(a + std::to_string(b));
+                  [this](const std::string& a, const auto& b) -> bool {
+                    this->stack()->popTwoAndPush(a + this->to_string(b));
                     return true;
                   },
-                  [stack](const double& a, const std::string& b) -> bool {
-                    stack->popTwoAndPush(std::to_string(a) + b);
+                  [this](const auto& a, const std::string& b) -> bool {
+                    this->stack()->popTwoAndPush(this->to_string(a) + b);
                     return true;
                   },
-                  [stack](auto& a, auto& b) -> bool { return false; },
+                  [this](auto& a, auto& b) -> bool { return false; },
               },
               stack_.peek(1), stack_.peek(0));
           if (!success) {

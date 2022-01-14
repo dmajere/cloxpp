@@ -52,6 +52,7 @@ class FunctionObject {
 typedef Value (*NativeFn)(int argCount, std::vector<Value>::iterator args);
 
 struct NativeFunctionObject {
+  std::string name;
   NativeFn function;
 };
 
@@ -91,40 +92,40 @@ struct InstanceObject {
   std::unordered_map<std::string, Value> fields;
 };
 
-struct OutputVisitor {
-  void operator()(const double d) const { std::cout << d; }
-  void operator()(const bool b) const { std::cout << (b ? "true" : "false"); }
-  void operator()(const std::monostate n) const { std::cout << "nil"; }
-  void operator()(const std::string& s) const {
-    std::cout << "\"" << s << "\"";
-  }
-  void operator()(Function func) const {
-    std::cout << "function " << func->name();
-  }
-  void operator()(Closure closure) const {
-    std::cout << "closure <" << closure->function->name() << ">";
-  }
-  void operator()(NativeFunction func) const { std::cout << "native function"; }
-  void operator()(UpvalueValue upvalue) const {
-    std::cout << "upvalue " << upvalue->location;
-  }
-  void operator()(Class klass) const { std::cout << "class " << klass->name; }
-  void operator()(Instance instance) const {
-    std::cout << "instance " << instance->klass->name;
-  }
-  void operator()(BoundMethod method) const {
-    std::cout << "method " << method->method->function->name() << " in class "
-              << method->self->klass->name;
-  }
+struct StringVisitor {
+  std::string operator()(const double d) const { return std::to_string(d); }
+  std::string operator()(const bool b) const { return b ? "true" : "false"; }
+  std::string operator()(const std::monostate n) const { return "nil"; }
+  std::string operator()(const std::string& s) const { return s; }
 
-  template <typename T>
-  void operator()(const T& value) const {
-    std::cout << value;
+  std::string operator()(const Function& func) const {
+    return "Function<" + func->name() + ">";
+  }
+  std::string operator()(const Closure& closure) const {
+    return "Function<" + closure->function->name() + ">";
+  }
+  std::string operator()(const NativeFunction& func) const {
+    return "Native<" + func->name + ">";
+  }
+  std::string operator()(const UpvalueValue& upvalue) const {
+    if (upvalue->location) {
+      return std::visit(StringVisitor(), *upvalue->location);
+    }
+    return "nil";
+  }
+  std::string operator()(const Class& klass) const {
+    return "Class<" + klass->name + ">";
+  }
+  std::string operator()(const Instance& instance) const {
+    return "Instance<" + instance->klass->name + ">";
+  }
+  std::string operator()(const BoundMethod& bound) const {
+    return "Function<" + bound->method->function->name() + ">";
   }
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Value& v) {
-  std::visit(OutputVisitor(), v);
+  os << std::visit(StringVisitor(), v);
   return os;
 }
 

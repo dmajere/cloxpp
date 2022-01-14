@@ -42,6 +42,12 @@ class Parser {
   std::unique_ptr<Scanner> scanner_;
   bool hadError_{false};
 
+  enum class FunctionType {
+    FUNCTION,
+    METHOD,
+    CONSTRUCTOR,
+  };
+
   inline bool isAtEnd() const {
     return scanner_->current().type == Token::Type::END;
   }
@@ -61,7 +67,8 @@ class Parser {
   void forStatement(Chunk& chunk, int depth);
   void returnStatement(Chunk& chunk, int depth);
   void expression(Chunk& chunk, int depth);
-  void function(Chunk& chunk, const std::string& name, int depth);
+  void function(Chunk& chunk, const std::string& name, const FunctionType& type,
+                int depth);
   void grouping(Chunk& chunk, int depth, bool canAssign);
   void unary(Chunk& chunk, int depth, bool canAssign);
   void binary(Chunk& chunk, int depth, bool canAssign);
