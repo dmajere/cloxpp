@@ -1,4 +1,3 @@
-/* 
 var a = 1;
 var b = 2;
 var c = a + b - 3 * 4 / 5;
@@ -11,7 +10,7 @@ if (truthy) { cond = "defined"; }
 print cond;
 
 var global = "global";
-{ 
+{
     var local = "local";
     print global;
     print local;
@@ -63,14 +62,21 @@ main();
 globalGet();
 globalSet("updated");
 globalGet();
-*/
 
 class TestClass {
-    testMethod() { print "testMethod call";}
-}
+  testMethod() { print "testMethod call"; }
+  thisMethod() { print this; }
+
+  setField(value) { this.field = value; }
+  getField() { return this.field; }
+
+} 
 print TestClass;
 var TestInstance = TestClass();
-print TestInstance;
 TestInstance.testField = "testValue";
+print TestInstance;
 print TestInstance.testField;
 TestInstance.testMethod();
+TestInstance.thisMethod();
+TestInstance.setField("setField");
+print TestInstance.getField();

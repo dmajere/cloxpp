@@ -77,6 +77,8 @@ void Parser::functionDeclaration(Chunk& chunk, int depth) {
 
 void Parser::classDeclaration(Chunk& chunk, int depth) {
   auto klass = scanner_->consume(Token::Type::IDENTIFIER, kExpectIdentifier);
+  chunk.isClassChunk = true;
+
   declareVariable(chunk, klass, depth);
   emitConstant(chunk, klass.lexeme, OpCode::CLASS, klass.line);
   defineVariable(chunk, klass, depth);
@@ -88,6 +90,8 @@ void Parser::classDeclaration(Chunk& chunk, int depth) {
   }
   scanner_->consume(Token::Type::RIGHT_BRACE, kExpectRightBrace);
   chunk.addCode(OpCode::POP, klass.line);
+
+  chunk.isClassChunk = false;
 }
 
 void Parser::methodDeclaration(Chunk& chunk, int depth) {
@@ -100,9 +104,18 @@ void Parser::function(Chunk& chunk, const std::string& name, int depth) {
   int line = scanner_->previous().line;
   auto function_chunk = std::make_unique<Chunk>();
   function_chunk->parent = &chunk;
+  function_chunk->isClassChunk = chunk.isClassChunk;
   int scope = depth + 1;
 
   startScope(*function_chunk, scope);
+  if (function_chunk->isClassChunk) {
+    Token thisToken(Token::Type::THIS, "this", scanner_->previous().line);
+    function_chunk->scope.declare(thisToken, scope);
+    function_chunk->scope.initialize(thisToken, scope);
+  } else {
+    function_chunk->scope.declare(scanner_->previous(), scope);
+    function_chunk->scope.initialize(scanner_->previous(), scope);
+  }
 
   scanner_->consume(Token::Type::LEFT_PAREN, kExpectLeftParen);
   int arity = 0;
@@ -240,6 +253,9 @@ void Parser::forStatement(Chunk& chunk, int depth) {
   int line = scanner_->previous().line;
   int scope = depth + 1;
   startScope(chunk, scope);
+
+  chunk.scope.declare(scanner_->previous(), scope);
+  chunk.scope.initialize(scanner_->previous(), scope);
   scanner_->consume(Token::Type::LEFT_PAREN, kExpectLeftParen);
 
   // init
@@ -319,6 +335,7 @@ void Parser::or_(Chunk& chunk, int depth, bool canAssign) {
 void Parser::dot(Chunk& chunk, int depth, bool canAssign) {
   auto identifier =
       scanner_->consume(Token::Type::IDENTIFIER, kExpectIdentifier);
+
   if (canAssign && scanner_->match(Token::Type::EQUAL)) {
     expression(chunk, depth);
     emitConstant(chunk, identifier.lexeme, OpCode::SET_PROPERTY,
@@ -327,6 +344,13 @@ void Parser::dot(Chunk& chunk, int depth, bool canAssign) {
     emitConstant(chunk, identifier.lexeme, OpCode::GET_PROPERTY,
                  identifier.line);
   }
+}
+
+void Parser::this_(Chunk& chunk, int depth, bool canAssign) {
+  if (!chunk.isClassChunk) {
+    parse_error(scanner_->previous(), "Cant use this outside of class");
+  }
+  variable(chunk, depth, false);
 }
 
 void Parser::startScope(Chunk& chunk, int depth) {
@@ -480,7 +504,7 @@ size_t Parser::resolveUpvalue(Chunk& chunk, const Token& name) {
 
 int Parser::addUpvalue(Chunk& chunk, uint8_t index, bool isLocal) {
   for (size_t i = 0; i < chunk.upvalues.size(); i++) {
-    if (chunk.upvalues[i].index == index + 1 &&
+    if (chunk.upvalues[i].index == index &&
         chunk.upvalues[i].isLocal == isLocal) {
       return static_cast<int>(i);
     }
@@ -491,7 +515,7 @@ int Parser::addUpvalue(Chunk& chunk, uint8_t index, bool isLocal) {
     return 0;
   }
 
-  chunk.upvalues.emplace_back(Upvalue(index + 1, isLocal));
+  chunk.upvalues.emplace_back(Upvalue(index, isLocal));
   return chunk.upvalues.size() - 1;
 }
 
@@ -505,7 +529,6 @@ void Parser::namedVariable(Chunk& chunk, const Token& token, bool canAssign,
   if (offset != -1) {
     get = OpCode::GET_LOCAL;
     set = OpCode::SET_LOCAL;
-    offset++;
   } else if (upvalue != -1) {
     get = OpCode::GET_UPVALUE;
     set = OpCode::SET_UPVALUE;

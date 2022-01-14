@@ -125,7 +125,8 @@ class Disassembler {
         std::cout << "'";
         break;
       case OpCode::GET_LOCAL:
-        std::cout << "GET_LOCAL '" << chunk.code[++offset] << "'";
+        std::cout << "GET_LOCAL '" << static_cast<int>(chunk.code[++offset])
+                  << "'";
         break;
       case OpCode::SET_LOCAL:
         std::cout << "SET_LOCAL '" << chunk.code[++offset] << "'";

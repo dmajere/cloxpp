@@ -20,9 +20,7 @@ class Stack {
     }
     return stack_[stack_.size() - i - 1];
   }
-  void set(size_t i, const lox::compiler::Value& value) {
-    stack_[i] = std::move(value);
-  }
+  void set(size_t i, const lox::compiler::Value& value) { stack_[i] = value; }
 
   void pop() {
     if (!stack_.empty()) stack_.pop_back();

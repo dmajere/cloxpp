@@ -65,7 +65,7 @@ class ClosureObject {
 class BoundMethodObject {
  public:
   explicit BoundMethodObject(Instance self, Closure method)
-      : self(std::move(self)), method(std::move(method)) {}
+      : self(self), method(method) {}
   Instance self;
   Closure method;
 };
@@ -86,7 +86,7 @@ struct ClassObject {
 };
 
 struct InstanceObject {
-  InstanceObject(Class klass) : klass{std::move(klass)} {}
+  InstanceObject(Class klass) : klass(klass) {}
   Class klass;
   std::unordered_map<std::string, Value> fields;
 };
@@ -115,6 +115,11 @@ struct OutputVisitor {
   void operator()(BoundMethod method) const {
     std::cout << "method " << method->method->function->name() << " in class "
               << method->self->klass->name;
+  }
+
+  template <typename T>
+  void operator()(const T& value) const {
+    std::cout << value;
   }
 };
 

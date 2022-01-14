@@ -33,7 +33,7 @@ namespace lang {
 
 struct CallFrame {
   CallFrame(int ip, unsigned long offset, Closure closure)
-      : ip(ip), stackOffset(offset), closure(std::move(closure)) {}
+      : ip(ip), stackOffset(offset), closure(closure) {}
 
   int ip;
   unsigned long stackOffset;
@@ -94,49 +94,51 @@ class VM {
   }
   Stack* stack() { return &stack_; }
 
+  Stack stack_;
+
  private:
   std::unique_ptr<Compiler> compiler_;
-  Stack stack_;
   std::unordered_map<std::string, Value> globals_;
   std::vector<CallFrame> frames_;
   UpvalueValue openUpvalues{nullptr};
 
   struct CallVisitor {
     const int argCount;
-    VM* vm;
+    VM& vm;
 
-    CallVisitor(int argCount, VM* vm) : argCount(argCount), vm(vm) {}
+    CallVisitor(int argCount, VM& vm) : argCount(argCount), vm(vm) {}
 
     bool operator()(const Closure& closure) const {
-      return vm->call(closure, argCount);
+      return vm.call(closure, argCount);
     }
     bool operator()(const NativeFunction& native) const {
-      auto result = native->function(argCount, vm->stack()->end() - argCount);
+      auto result = native->function(argCount, vm.stack_.end() - argCount);
 
       for (int i = 0; i == argCount; i++) {
-        vm->stack()->pop();
+        vm.stack_.pop();
       }
-      vm->stack()->push(result);
+      vm.stack_.push(result);
       return true;
     }
     bool operator()(const Class& klass) const {
       Instance instance = std::make_shared<InstanceObject>(klass);
-      vm->stack()->pop();
-      vm->stack()->push(instance);
+      vm.stack_.pop();
+      vm.stack_.push(instance);
       return true;
     }
     bool operator()(const BoundMethod& bound) const {
-      return vm->call(bound->method, argCount);
+      vm.stack_.set(vm.stack_.size() - argCount - 1, bound->self);
+      return vm.call(bound->method, argCount);
     }
 
     template <typename T>
     bool operator()(const T& value) const {
-      vm->runtimeError("Can only call functions and classes.");
+      vm.runtimeError("Can only call functions and classes.");
       return false;
     }
   };
-  bool callValue(const Value& callee, int argCount) {
-    return std::visit(CallVisitor(argCount, this), callee);
+  bool callValue(Value callee, int argCount) {
+    return std::visit(CallVisitor(argCount, *this), callee);
   }
 
   void defineNative(const std::string& name, NativeFn function) {
@@ -188,9 +190,7 @@ class VM {
         std::cout << "=== Stack: " << codes[static_cast<int>(op)] << " ===\n";
         if (!stack_.empty()) {
           for (const auto& v : stack_) {
-            std::cout << "=> ";
-            lox::compiler::Disassembler::value(v);
-            std::cout << "\n";
+            std::cout << "=> " << v << "\n";
           }
         } else {
           std::cout << "\tempty\n";
@@ -220,8 +220,7 @@ class VM {
         }
         case OpCode::CLOSURE: {
           auto function = read_function();
-          Closure closure =
-              std::make_shared<ClosureObject>(std::move(function));
+          Closure closure = std::make_shared<ClosureObject>(function);
           for (auto& upvalue : closure->function->chunk().upvalues) {
             if (upvalue.isLocal) {
               int offset = frames_.back().stackOffset + upvalue.index;
@@ -290,9 +289,7 @@ class VM {
           break;
         }
         case OpCode::PRINT: {
-          std::cout << "[Out]: ";
-          lox::compiler::Disassembler::value(stack_.peek());
-          std::cout << "\n";
+          std::cout << "[Out]: " << stack_.peek(0) << "\n";
           break;
         }
         case OpCode::DEFINE_GLOBAL: {
@@ -341,8 +338,9 @@ class VM {
 
             auto method = instance->klass->methods.find(name);
             if (method != instance->klass->methods.end()) {
+              auto closure = method->second;
               BoundMethod bound =
-                  std::make_shared<BoundMethodObject>(instance, method->second);
+                  std::make_shared<BoundMethodObject>(instance, closure);
               stack_.pop();
               stack_.push(bound);
               break;
@@ -381,8 +379,7 @@ class VM {
         }
         case OpCode::SET_LOCAL: {
           uint8_t slot = read_byte();
-          Value copy = stack_.peek(0);
-          stack_.set(frames_.back().stackOffset + slot, copy);
+          stack_.set(frames_.back().stackOffset + slot, stack_.peek(0));
           break;
         }
         case OpCode::CONSTANT: {

@@ -77,6 +77,7 @@ struct Chunk {
   Chunk* parent = nullptr;
   Scope scope;
   std::vector<Upvalue> upvalues;
+  bool isClassChunk{false};
 
   void addCode(const OpCode& c, int line) {
     code.push_back(static_cast<uint8_t>(c));
