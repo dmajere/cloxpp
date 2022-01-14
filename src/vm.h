@@ -121,8 +121,12 @@ class VM {
     }
     bool operator()(const Class& klass) const {
       Instance instance = std::make_shared<InstanceObject>(klass);
+      vm->stack()->pop();
       vm->stack()->push(instance);
       return true;
+    }
+    bool operator()(const BoundMethod& bound) const {
+      return vm->call(bound->method, argCount);
     }
 
     template <typename T>
@@ -200,6 +204,14 @@ class VM {
   } while (false)
 
       switch (static_cast<OpCode>(op)) {
+        case OpCode::METHOD: {
+          auto name = read_string();
+          Closure method = std::get<Closure>(stack_.peek(0));
+          Class klass = std::get<Class>(stack_.peek(1));
+          klass->methods.insert({name, method});
+          stack_.pop();
+          break;
+        }
         case OpCode::CLASS: {
           auto name = read_string();
           Class klass = std::make_shared<ClassObject>(name);
@@ -319,13 +331,24 @@ class VM {
         case OpCode::GET_PROPERTY: {
           try {
             auto instance = std::get<Instance>(stack_.peek(0));
-            auto field = read_string();
-            auto it = instance->fields.find(field);
-            if (it == instance->fields.end()) {
-              runtimeError("Undefined class property");
+            auto name = read_string();
+            auto field = instance->fields.find(name);
+            if (field != instance->fields.end()) {
+              stack_.pop();
+              stack_.push(field->second);
+              break;
             }
-            stack_.pop();
-            stack_.push(it->second);
+
+            auto method = instance->klass->methods.find(name);
+            if (method != instance->klass->methods.end()) {
+              BoundMethod bound =
+                  std::make_shared<BoundMethodObject>(instance, method->second);
+              stack_.pop();
+              stack_.push(bound);
+              break;
+            }
+
+            runtimeError("Undefined class property");
           } catch (std::bad_variant_access&) {
             runtimeError("Only instances have properties");
           }

@@ -1,3 +1,4 @@
+/* 
 var a = 1;
 var b = 2;
 var c = a + b - 3 * 4 / 5;
@@ -62,11 +63,14 @@ main();
 globalGet();
 globalSet("updated");
 globalGet();
+*/
 
-
-class TestClass {}
+class TestClass {
+    testMethod() { print "testMethod call";}
+}
 print TestClass;
 var TestInstance = TestClass();
 print TestInstance;
 TestInstance.testField = "testValue";
 print TestInstance.testField;
+TestInstance.testMethod();

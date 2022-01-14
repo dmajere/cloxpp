@@ -76,14 +76,24 @@ void Parser::functionDeclaration(Chunk& chunk, int depth) {
 }
 
 void Parser::classDeclaration(Chunk& chunk, int depth) {
-  auto identifier =
-      scanner_->consume(Token::Type::IDENTIFIER, kExpectIdentifier);
-  declareVariable(chunk, identifier, depth);
-  emitConstant(chunk, identifier.lexeme, OpCode::CLASS, identifier.line);
-  defineVariable(chunk, identifier, depth);
+  auto klass = scanner_->consume(Token::Type::IDENTIFIER, kExpectIdentifier);
+  declareVariable(chunk, klass, depth);
+  emitConstant(chunk, klass.lexeme, OpCode::CLASS, klass.line);
+  defineVariable(chunk, klass, depth);
 
+  namedVariable(chunk, klass, false, depth);
   scanner_->consume(Token::Type::LEFT_BRACE, kExpectLeftBrace);
+  while (!scanner_->check(Token::Type::RIGHT_BRACE)) {
+    methodDeclaration(chunk, depth);
+  }
   scanner_->consume(Token::Type::RIGHT_BRACE, kExpectRightBrace);
+  chunk.addCode(OpCode::POP, klass.line);
+}
+
+void Parser::methodDeclaration(Chunk& chunk, int depth) {
+  auto method = scanner_->consume(Token::Type::IDENTIFIER, kExpectIdentifier);
+  function(chunk, method.lexeme, depth);
+  emitConstant(chunk, method.lexeme, OpCode::METHOD, method.line);
 }
 
 void Parser::function(Chunk& chunk, const std::string& name, int depth) {

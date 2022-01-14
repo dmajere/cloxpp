@@ -16,6 +16,7 @@ struct ClosureObject;
 struct UpvalueObject;
 struct ClassObject;
 struct InstanceObject;
+struct BoundMethodObject;
 
 using Function = std::shared_ptr<FunctionObject>;
 using NativeFunction = std::shared_ptr<NativeFunctionObject>;
@@ -23,10 +24,11 @@ using Closure = std::shared_ptr<ClosureObject>;
 using UpvalueValue = std::shared_ptr<UpvalueObject>;
 using Class = std::shared_ptr<ClassObject>;
 using Instance = std::shared_ptr<InstanceObject>;
+using BoundMethod = std::shared_ptr<BoundMethodObject>;
 
-using Value =
-    std::variant<double, bool, std::monostate, std::string, Function,
-                 NativeFunction, Closure, UpvalueValue, Class, Instance>;
+using Value = std::variant<double, bool, std::monostate, std::string, Function,
+                           NativeFunction, Closure, UpvalueValue, Class,
+                           Instance, BoundMethod>;
 
 std::ostream& operator<<(std::ostream& os, const Value& v);
 
@@ -60,6 +62,14 @@ class ClosureObject {
   std::vector<UpvalueValue> upvalues;
 };
 
+class BoundMethodObject {
+ public:
+  explicit BoundMethodObject(Instance self, Closure method)
+      : self(std::move(self)), method(std::move(method)) {}
+  Instance self;
+  Closure method;
+};
+
 struct UpvalueObject {
   Value* location;
   Value closed;
@@ -72,6 +82,7 @@ struct ClassObject {
   ClassObject(std::string& name) : name(std::move(name)) {}
 
   std::string name;
+  std::unordered_map<std::string, Closure> methods;
 };
 
 struct InstanceObject {
@@ -100,6 +111,10 @@ struct OutputVisitor {
   void operator()(Class klass) const { std::cout << "class " << klass->name; }
   void operator()(Instance instance) const {
     std::cout << "instance " << instance->klass->name;
+  }
+  void operator()(BoundMethod method) const {
+    std::cout << "method " << method->method->function->name() << " in class "
+              << method->self->klass->name;
   }
 };
 

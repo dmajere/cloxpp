@@ -66,6 +66,13 @@ class Disassembler {
         value(chunk.constants[chunk.code[++offset]]);
         std::cout << "'";
         break;
+      case OpCode::METHOD:
+        std::cout << "METHOD '";
+        value(chunk.constants[chunk.code[++offset]]);
+        // std::cout << "' name='";
+        // value(chunk.constants[chunk.code[++offset]]);
+        std::cout << "'";
+        break;
       case OpCode::RETURN:
         std::cout << "RETURN";
         break;

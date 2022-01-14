@@ -51,6 +51,7 @@ class Parser {
   void variableDeclaration(Chunk& chunk, int depth);
   void functionDeclaration(Chunk& chunk, int depth);
   void classDeclaration(Chunk& chunk, int depth);
+  void methodDeclaration(Chunk& chunk, int depth);
   void statement(Chunk& chunk, int depth);
   void printStatement(Chunk& chunk, int depth);
   void block(Chunk& chunk, int depth);
