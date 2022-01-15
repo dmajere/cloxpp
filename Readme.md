@@ -20,3 +20,4 @@ This VM is ported from the C to C++.
 26. Garbage Collection. (not implemented, using `shared_ptr` instead for ref counting)
 27. Classes and Instances.
 28. Methods and Initializers.
+29. Superclasses.
