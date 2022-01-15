@@ -22,6 +22,9 @@ void ReadAllScanner::scan() {
   while (const char c = peekChar()) {
     auto maybeToken = getToken(c);
     if (maybeToken.has_value()) {
+      if (maybeToken.value().type == Token::Type::ERROR) {
+        parse_error(current(), "Unexpected error token");
+      }
       tokens_.push_back(std::move(maybeToken.value()));
     }
   }

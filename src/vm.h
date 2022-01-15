@@ -10,9 +10,11 @@
 #include <variant>
 
 #include "NativeFunctions.h"
+#include "RuntimeError.h"
 #include "Stack.h"
 #include "compiler/Chunk.h"
 #include "compiler/Compiler.h"
+#include "compiler/ParseError.h"
 #include "compiler/Value.h"
 #include "compiler/debug.h"
 
@@ -54,17 +56,19 @@ class VM {
   ~VM() = default;
 
   InterpretResult interpret(const std::string& code) {
-    auto closure = compiler_->compile(code);
-    if (closure && closure->function) {
-      try {
+    try {
+      auto closure = compiler_->compile(code);
+      if (closure && closure->function) {
         stack_.push(closure->function);
         call(closure, 0);
         auto interpret_result = run();
         return interpret_result;
-      } catch (std::runtime_error&) {
-        return InterpretResult::RUNTIME_ERROR;
+      } else {
+        return InterpretResult::COMPILE_ERROR;
       }
-    } else {
+    } catch (RuntimeError&) {
+      return InterpretResult::RUNTIME_ERROR;
+    } catch (ParseError&) {
       return InterpretResult::COMPILE_ERROR;
     }
   }
@@ -90,7 +94,7 @@ class VM {
     std::cout << "RuntimeError: " << message << "\n";
     frames_.pop_back();
     stack_.reset();
-    throw std::runtime_error("error");
+    throw RuntimeError("error");
   }
   Stack* stack() { return &stack_; }
 

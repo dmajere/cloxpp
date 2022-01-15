@@ -30,12 +30,14 @@ Closure Parser::run() {
     std::cout << error.what();
     scanner_->synchronize();
   }
+
   if (!hadError_) {
     chunk->scope.clear();
     chunk->upvalues.clear();
     auto func = std::make_shared<FunctionObject>(0, "script", std::move(chunk));
     return std::make_shared<ClosureObject>(std::move(func));
   }
+
   return nullptr;
 }
 
