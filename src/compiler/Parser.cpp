@@ -404,7 +404,13 @@ void Parser::super_(Chunk& chunk, int depth, bool canAssign) {
                     method.line);  // this
   namedVariable(chunk, Token(Token::Type::SUPER, "super", method.line), false,
                 depth);
-  emitConstant(chunk, method.lexeme, OpCode::GET_SUPER, method.line);
+  if (scanner_->match(Token::Type::LEFT_PAREN)) {
+    uint8_t argCount = argumentList(chunk, depth);
+    emitConstant(chunk, method.lexeme, OpCode::SUPER_INVOKE, method.line);
+    chunk.addOperand(argCount);
+  } else {
+    emitConstant(chunk, method.lexeme, OpCode::GET_SUPER, method.line);
+  }
 }
 
 void Parser::startScope(Chunk& chunk, int depth) {

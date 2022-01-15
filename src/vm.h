@@ -69,15 +69,13 @@ class VM {
     }
   }
 
-  bool call(const Closure& closure, int argCount) {
+  void call(const Closure& closure, int argCount) {
     if (argCount != closure->function->arity()) {
       runtimeError("Function arity mismatch");
-      return false;
     }
 
     if (frames_.size() + 1 == FRAMES_MAX) {
       runtimeError("Stack overflow.");
-      return false;
     }
 
     if (FLAGS_debug) {
@@ -86,7 +84,6 @@ class VM {
 
     unsigned long offset = stack_.size() - argCount - 1;
     frames_.emplace_back(CallFrame(0, offset, closure));
-    return true;
   }
 
   void runtimeError(const std::string& message) {
@@ -114,47 +111,43 @@ class VM {
 
     CallVisitor(int argCount, VM& vm) : argCount(argCount), vm(vm) {}
 
-    bool operator()(const Closure& closure) const {
-      return vm.call(closure, argCount);
+    void operator()(const Closure& closure) const {
+      vm.call(closure, argCount);
     }
-    bool operator()(const NativeFunction& native) const {
+    void operator()(const NativeFunction& native) const {
       auto result = native->function(argCount, vm.stack_.end() - argCount);
 
       for (int i = 0; i == argCount; i++) {
         vm.stack_.pop();
       }
       vm.stack_.push(result);
-      return true;
     }
-    bool operator()(const Class& klass) const {
+    void operator()(const Class& klass) const {
       Instance instance = std::make_shared<InstanceObject>(klass);
       vm.stack_.set(vm.stack_.size() - argCount - 1, instance);
 
       auto found = klass->methods.find(std::string{kKlassConstructorName});
       if (found != klass->methods.end()) {
         auto initializer = found->second;
-        return vm.call(initializer, argCount);
+        vm.call(initializer, argCount);
       } else if (argCount != 0) {
         vm.runtimeError("Expected zero argument");
-        return false;
       }
-      return true;
     }
-    bool operator()(const BoundMethod& bound) const {
+    void operator()(const BoundMethod& bound) const {
       vm.stack_.set(vm.stack_.size() - argCount - 1, bound->self);
-      return vm.call(bound->method, argCount);
+      vm.call(bound->method, argCount);
     }
 
     template <typename T>
-    bool operator()(const T& value) const {
+    void operator()(const T& value) const {
       vm.runtimeError("Can only call functions and classes.");
-      return false;
     }
   };
-  bool callValue(Value callee, int argCount) {
-    return std::visit(CallVisitor(argCount, *this), callee);
+  void callValue(Value callee, int argCount) {
+    std::visit(CallVisitor(argCount, *this), callee);
   }
-  bool invoke(const std::string& name, int argCount) {
+  void invoke(const std::string& name, int argCount) {
     try {
       Instance instance = std::get<Instance>(stack_.peek(argCount));
 
@@ -162,23 +155,23 @@ class VM {
       if (field != instance->fields.end()) {
         Value value = field->second;
         stack_.set(stack_.size() - argCount - 1, value);
-        return callValue(value, argCount);
+        callValue(value, argCount);
+        return;
       }
 
-      return invokeFromClass(instance->klass, name, argCount);
+      invokeFromClass(instance->klass, name, argCount);
     } catch (std::bad_variant_access&) {
       runtimeError("Only Instances have methods");
     }
-    return false;
   }
 
-  bool invokeFromClass(Class klass, const std::string& name, int argCount) {
+  void invokeFromClass(Class klass, const std::string& name, int argCount) {
     auto found = klass->methods.find(name);
     if (found == klass->methods.end()) {
       runtimeError("Undefined property");
     }
     Closure method = found->second;
-    return call(method, argCount);
+    call(method, argCount);
   }
 
   void bindMethod(Class klass, const std::string& name) {
@@ -286,6 +279,15 @@ class VM {
           bindMethod(superclass, method);
           break;
         }
+        case OpCode::SUPER_INVOKE: {
+          auto method = read_string();
+          auto argCount = read_byte();
+          auto superclass = std::get<Class>(stack_.peek(0));
+          stack_.pop();
+
+          invokeFromClass(superclass, method, argCount);
+          break;
+        }
         case OpCode::CLASS: {
           auto name = read_string();
           Class klass = std::make_shared<ClassObject>(name);
@@ -315,9 +317,7 @@ class VM {
         }
         case OpCode::CALL: {
           int argCount = read_byte();
-          if (!callValue(stack_.peek(argCount), argCount)) {
-            return InterpretResult::RUNTIME_ERROR;
-          }
+          callValue(stack_.peek(argCount), argCount);
           break;
         }
         case OpCode::LOOP: {

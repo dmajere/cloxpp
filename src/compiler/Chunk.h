@@ -22,7 +22,7 @@ const std::vector<std::string> codes{
     "JUMP_IF_FALSE", "JUMP",         "LOOP",         "CALL",
     "CLOSURE",       "SET_UPVALUE",  "GET_UPVALUE",  "CLOSE_UPVALUE",
     "CLASS",         "SET_PROPERTY", "GET_PROPERTY", "METHOD",
-    "INVOKE",        "INHERIT"};
+    "INVOKE",        "INHERIT",      "SUPER_INVOKE"};
 
 enum class OpCode {
   CONSTANT,
@@ -64,6 +64,7 @@ enum class OpCode {
   INVOKE,
   INHERIT,
   GET_SUPER,
+  SUPER_INVOKE,
 };
 
 class Upvalue {

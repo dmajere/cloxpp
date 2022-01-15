@@ -36,21 +36,23 @@ class Disassembler {
     switch (op) {
       case OpCode::LOOP: {
         uint16_t jump_ =
-            (uint16_t)((chunk.code[++offset] << 8) | chunk.code[++offset]);
+            (uint16_t)((chunk.code[offset + 1] << 8) | chunk.code[offset + 2]);
+        offset += 2;
         std::cout << "LOOP " << jump_;
         break;
       }
       case OpCode::JUMP_IF_FALSE: {
         uint16_t jump_ =
-            (uint16_t)((chunk.code[++offset] << 8) | chunk.code[++offset]);
+            (uint16_t)((chunk.code[offset + 1] << 8) | chunk.code[offset + 2]);
         std::cout << "JUMP_IF_FALSE " << jump_;
+        offset += 2;
         break;
       }
       case OpCode::JUMP: {
         uint16_t jump_ =
-            (uint16_t)((chunk.code[++offset] << 8) | chunk.code[++offset]);
+            (uint16_t)((chunk.code[offset + 1] << 8) | chunk.code[offset + 2]);
         std::cout << "JUMP " << jump_;
-        offset++;
+        offset += 3;
         break;
       }
       case OpCode::CALL:
@@ -59,6 +61,12 @@ class Disassembler {
         break;
       case OpCode::INVOKE:
         std::cout << "INVOKE '";
+        value(chunk.constants[chunk.code[++offset]]);
+        std::cout << "'";
+        offset++;
+        break;
+      case OpCode::SUPER_INVOKE:
+        std::cout << "SUPER_INVOKE";
         value(chunk.constants[chunk.code[++offset]]);
         std::cout << "'";
         offset++;
