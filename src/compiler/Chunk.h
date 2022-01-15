@@ -63,6 +63,7 @@ enum class OpCode {
   METHOD,
   INVOKE,
   INHERIT,
+  GET_SUPER,
 };
 
 class Upvalue {
@@ -86,6 +87,7 @@ struct Chunk {
   std::vector<Upvalue> upvalues;
   Type type{Type::NONE};
   Type enclosingType{Type::NONE};
+  bool hasSuperclass{false};
 
   void addCode(const OpCode& c, int line) {
     code.push_back(static_cast<uint8_t>(c));

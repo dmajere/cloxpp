@@ -118,7 +118,14 @@ var chain = ChainCall();
 Test("Class chain call", assertEq(chain.outer.inner, "inner"));
 
 class Parent {
+    parent() {
+        return "parent";
+    }
 }
-class Child < Parent {}
 
-var object = Child();
+class Child < Parent {
+    child() {
+        return super.parent();
+    }
+}
+Test("Class inheritance", assertEq(Child().child(), "parent"));

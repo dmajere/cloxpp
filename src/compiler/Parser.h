@@ -81,6 +81,7 @@ class Parser {
   void call(Chunk& chunk, int depth, bool canAssign);
   void dot(Chunk& chunk, int depth, bool canAssign);
   void this_(Chunk& chunk, int depth, bool canAssign);
+  void super_(Chunk& chunk, int depth, bool canAssign);
 
   const Token& parseVariable(const std::string& error_message);
   void declareVariable(Chunk& chunk, const Token& name, int depth);
@@ -190,6 +191,9 @@ class Parser {
     auto this_ = [this](Chunk& chunk, int depth, bool canAssign) {
       this->this_(chunk, depth, canAssign);
     };
+    auto super_ = [this](Chunk& chunk, int depth, bool canAssign) {
+      this->super_(chunk, depth, canAssign);
+    };
 
     static const std::vector<ParseRule> rules = {
         {grouping, call, Precedence::CALL},         // LEFT_PAREN
@@ -234,7 +238,7 @@ class Parser {
         {nullptr, or_, Precedence::OR},             // OR
         {nullptr, nullptr, Precedence::NONE},       // PRINT
         {nullptr, nullptr, Precedence::NONE},       // RETURN
-        {nullptr, nullptr, Precedence::NONE},       // SUPER
+        {super_, nullptr, Precedence::NONE},        // SUPER
         {this_, nullptr, Precedence::NONE},         // THIS
         {literal, nullptr, Precedence::NONE},       // TRUE;
         {nullptr, nullptr, Precedence::NONE},       // VAR

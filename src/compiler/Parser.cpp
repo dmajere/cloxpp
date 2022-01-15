@@ -80,15 +80,24 @@ void Parser::classDeclaration(Chunk& chunk, int depth) {
   declareVariable(chunk, klass, depth);
   emitConstant(chunk, klass.lexeme, OpCode::CLASS, klass.line);
   defineVariable(chunk, klass, depth);
+  int scope = depth + 1;
 
   if (scanner_->match(Token::Type::LESS)) {
     auto parent = scanner_->consume(Token::Type::IDENTIFIER, kExpectIdentifier);
+    namedVariable(chunk, parent, false, depth);
+
     if (klass.lexeme == parent.lexeme) {
       parse_error(klass, "class can't inherit from itself");
     }
-    namedVariable(chunk, parent, false, depth);
+
+    startScope(chunk, scope);
+    Token superToken(Token::Type::SUPER, "super", parent.line);
+    declareVariable(chunk, superToken, scope);
+    defineVariable(chunk, superToken, scope);
+
     namedVariable(chunk, klass, false, depth);
     chunk.addCode(OpCode::INHERIT, parent.line);
+    chunk.hasSuperclass = true;
   }
 
   namedVariable(chunk, klass, false, depth);
@@ -103,6 +112,9 @@ void Parser::classDeclaration(Chunk& chunk, int depth) {
   scanner_->consume(Token::Type::RIGHT_BRACE, kExpectRightBrace);
   chunk.addCode(OpCode::POP, klass.line);
 
+  if (chunk.hasSuperclass) {
+    endScope(chunk, scope);
+  }
   chunk.type = chunk.enclosingType;
 }
 
@@ -123,6 +135,7 @@ void Parser::function(Chunk& chunk, const std::string& name,
   function_chunk->parent = &chunk;
   function_chunk->type = chunk.type;
   function_chunk->enclosingType = chunk.enclosingType;
+  function_chunk->hasSuperclass = chunk.hasSuperclass;
   int scope = depth + 1;
 
   startScope(*function_chunk, scope);
@@ -373,6 +386,25 @@ void Parser::this_(Chunk& chunk, int depth, bool canAssign) {
     parse_error(scanner_->previous(), "Cant use this outside of class");
   }
   emitNamedVariable(chunk, OpCode::GET_LOCAL, 0, scanner_->previous().line);
+}
+
+void Parser::super_(Chunk& chunk, int depth, bool canAssign) {
+  if (chunk.type != Chunk::Type::CLASS) {
+    parse_error(scanner_->previous(), "Cant use this outside of class");
+  }
+  if (!chunk.hasSuperclass) {
+    parse_error(scanner_->previous(),
+                "Can't use 'super' in class without parent.");
+  }
+
+  scanner_->consume(Token::Type::DOT, "Expect '.' after 'super'.");
+  auto method = scanner_->consume(Token::Type::IDENTIFIER, kExpectIdentifier);
+
+  emitNamedVariable(chunk, OpCode::GET_LOCAL, 0,
+                    method.line);  // this
+  namedVariable(chunk, Token(Token::Type::SUPER, "super", method.line), false,
+                depth);
+  emitConstant(chunk, method.lexeme, OpCode::GET_SUPER, method.line);
 }
 
 void Parser::startScope(Chunk& chunk, int depth) {

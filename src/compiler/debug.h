@@ -80,6 +80,11 @@ class Disassembler {
         value(chunk.constants[chunk.code[++offset]]);
         std::cout << "'";
         break;
+      case OpCode::GET_SUPER:
+        std::cout << "GET_SUPER '";
+        value(chunk.constants[chunk.code[++offset]]);
+        std::cout << "'";
+        break;
       case OpCode::RETURN:
         std::cout << "RETURN";
         break;

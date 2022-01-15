@@ -181,6 +181,18 @@ class VM {
     return call(method, argCount);
   }
 
+  void bindMethod(Class klass, const std::string& name) {
+    auto method = klass->methods.find(name);
+    if (method == klass->methods.end()) {
+      runtimeError("Undefined class property");
+    }
+    auto closure = method->second;
+    auto instance = std::get<Instance>(stack_.peek(0));
+    BoundMethod bound = std::make_shared<BoundMethodObject>(instance, closure);
+    stack_.pop();
+    stack_.push(bound);
+  }
+
   void defineNative(const std::string& name, NativeFn function) {
     auto obj = std::make_shared<NativeFunctionObject>();
     obj->name = name;
@@ -261,10 +273,17 @@ class VM {
               subclass->methods.insert(method);
             }
             stack_.pop();  // subclass
-            stack_.pop();  // parent
+            // stack_.pop();  // parent
           } catch (std::bad_variant_access&) {
             runtimeError("Superclass must be a class");
           }
+          break;
+        }
+        case OpCode::GET_SUPER: {
+          auto method = read_string();
+          auto superclass = std::get<Class>(stack_.peek(0));
+          stack_.pop();
+          bindMethod(superclass, method);
           break;
         }
         case OpCode::CLASS: {
@@ -396,18 +415,7 @@ class VM {
               stack_.push(field->second);
               break;
             }
-
-            auto method = instance->klass->methods.find(name);
-            if (method != instance->klass->methods.end()) {
-              auto closure = method->second;
-              BoundMethod bound =
-                  std::make_shared<BoundMethodObject>(instance, closure);
-              stack_.pop();
-              stack_.push(bound);
-              break;
-            }
-
-            runtimeError("Undefined class property");
+            bindMethod(instance->klass, name);
           } catch (std::bad_variant_access&) {
             runtimeError("Only instances have properties");
           }
