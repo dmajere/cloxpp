@@ -57,6 +57,12 @@ class Disassembler {
         std::cout << "CALL";
         offset++;
         break;
+      case OpCode::INVOKE:
+        std::cout << "INVOKE '";
+        value(chunk.constants[chunk.code[++offset]]);
+        std::cout << "'";
+        offset++;
+        break;
       case OpCode::CLOSURE:
         std::cout << "CLOSURE ";
         value(chunk.constants[chunk.code[++offset]]);
@@ -69,8 +75,6 @@ class Disassembler {
       case OpCode::METHOD:
         std::cout << "METHOD '";
         value(chunk.constants[chunk.code[++offset]]);
-        // std::cout << "' name='";
-        // value(chunk.constants[chunk.code[++offset]]);
         std::cout << "'";
         break;
       case OpCode::RETURN:

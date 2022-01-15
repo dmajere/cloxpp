@@ -76,13 +76,15 @@ void Parser::functionDeclaration(Chunk& chunk, int depth) {
 
 void Parser::classDeclaration(Chunk& chunk, int depth) {
   auto klass = scanner_->consume(Token::Type::IDENTIFIER, kExpectIdentifier);
-  chunk.isClassChunk = true;
 
   declareVariable(chunk, klass, depth);
   emitConstant(chunk, klass.lexeme, OpCode::CLASS, klass.line);
   defineVariable(chunk, klass, depth);
-
   namedVariable(chunk, klass, false, depth);
+
+  chunk.enclosingType = chunk.type;
+  chunk.type = Chunk::Type::CLASS;
+
   scanner_->consume(Token::Type::LEFT_BRACE, kExpectLeftBrace);
   while (!scanner_->check(Token::Type::RIGHT_BRACE)) {
     methodDeclaration(chunk, depth);
@@ -90,7 +92,7 @@ void Parser::classDeclaration(Chunk& chunk, int depth) {
   scanner_->consume(Token::Type::RIGHT_BRACE, kExpectRightBrace);
   chunk.addCode(OpCode::POP, klass.line);
 
-  chunk.isClassChunk = false;
+  chunk.type = chunk.enclosingType;
 }
 
 void Parser::methodDeclaration(Chunk& chunk, int depth) {
@@ -108,7 +110,8 @@ void Parser::function(Chunk& chunk, const std::string& name,
   int line = scanner_->previous().line;
   auto function_chunk = std::make_unique<Chunk>();
   function_chunk->parent = &chunk;
-  function_chunk->isClassChunk = chunk.isClassChunk;
+  function_chunk->type = chunk.type;
+  function_chunk->enclosingType = chunk.enclosingType;
   int scope = depth + 1;
 
   startScope(*function_chunk, scope);
@@ -344,6 +347,10 @@ void Parser::dot(Chunk& chunk, int depth, bool canAssign) {
     expression(chunk, depth);
     emitConstant(chunk, identifier.lexeme, OpCode::SET_PROPERTY,
                  identifier.line);
+  } else if (scanner_->match(Token::Type::LEFT_PAREN)) {
+    uint8_t argCount = argumentList(chunk, depth);
+    emitConstant(chunk, identifier.lexeme, OpCode::INVOKE, identifier.line);
+    chunk.addOperand(argCount);
   } else {
     emitConstant(chunk, identifier.lexeme, OpCode::GET_PROPERTY,
                  identifier.line);
@@ -351,7 +358,7 @@ void Parser::dot(Chunk& chunk, int depth, bool canAssign) {
 }
 
 void Parser::this_(Chunk& chunk, int depth, bool canAssign) {
-  if (!chunk.isClassChunk) {
+  if (chunk.type != Chunk::Type::CLASS) {
     parse_error(scanner_->previous(), "Cant use this outside of class");
   }
   emitNamedVariable(chunk, OpCode::GET_LOCAL, 0, scanner_->previous().line);

@@ -154,6 +154,32 @@ class VM {
   bool callValue(Value callee, int argCount) {
     return std::visit(CallVisitor(argCount, *this), callee);
   }
+  bool invoke(const std::string& name, int argCount) {
+    try {
+      Instance instance = std::get<Instance>(stack_.peek(argCount));
+
+      auto field = instance->fields.find(name);
+      if (field != instance->fields.end()) {
+        Value value = field->second;
+        stack_.set(stack_.size() - argCount - 1, value);
+        return callValue(value, argCount);
+      }
+
+      return invokeFromClass(instance->klass, name, argCount);
+    } catch (std::bad_variant_access&) {
+      runtimeError("Only Instances have methods");
+    }
+    return false;
+  }
+
+  bool invokeFromClass(Class klass, const std::string& name, int argCount) {
+    auto found = klass->methods.find(name);
+    if (found == klass->methods.end()) {
+      runtimeError("Undefined property");
+    }
+    Closure method = found->second;
+    return call(method, argCount);
+  }
 
   void defineNative(const std::string& name, NativeFn function) {
     auto obj = std::make_shared<NativeFunctionObject>();
@@ -246,6 +272,12 @@ class VM {
             }
           }
           stack_.push(closure);
+          break;
+        }
+        case OpCode::INVOKE: {
+          auto method = read_string();
+          int argCount = read_byte();
+          invoke(method, argCount);
           break;
         }
         case OpCode::CALL: {

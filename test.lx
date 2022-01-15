@@ -90,3 +90,29 @@ class Initialized {
     }
 }
 Test("Class initializer", assertEq(Initialized("value").field, "value"));
+
+class FieldInvoke {
+    init() {
+        fun f() {
+            return "invoke";
+        }
+        this.field = f;
+    }
+}
+var fi = FieldInvoke();
+Test("Class Field handling method", assertEq(fi.field(), "invoke"));
+
+class ChainCall {
+    init() {
+
+        class Inner {
+            init() {
+                this.inner = "inner";
+            }
+        }
+        
+        this.outer = Inner();
+    }
+}
+var chain = ChainCall();
+Test("Class chain call", assertEq(chain.outer.inner, "inner"));

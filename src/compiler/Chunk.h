@@ -73,13 +73,18 @@ class Upvalue {
 };
 
 struct Chunk {
+  enum class Type {
+    NONE,
+    CLASS,
+  };
   std::vector<uint8_t> code;
   std::vector<Value> constants;
   std::vector<int> lines;
   Chunk* parent = nullptr;
   Scope scope;
   std::vector<Upvalue> upvalues;
-  bool isClassChunk{false};
+  Type type{Type::NONE};
+  Type enclosingType{Type::NONE};
 
   void addCode(const OpCode& c, int line) {
     code.push_back(static_cast<uint8_t>(c));
