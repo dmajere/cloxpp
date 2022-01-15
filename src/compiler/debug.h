@@ -67,6 +67,9 @@ class Disassembler {
         std::cout << "CLOSURE ";
         value(chunk.constants[chunk.code[++offset]]);
         break;
+      case OpCode::INHERIT:
+        std::cout << "INHERIT";
+        break;
       case OpCode::CLASS:
         std::cout << "CLASS '";
         value(chunk.constants[chunk.code[++offset]]);

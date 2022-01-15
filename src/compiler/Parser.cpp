@@ -80,6 +80,17 @@ void Parser::classDeclaration(Chunk& chunk, int depth) {
   declareVariable(chunk, klass, depth);
   emitConstant(chunk, klass.lexeme, OpCode::CLASS, klass.line);
   defineVariable(chunk, klass, depth);
+
+  if (scanner_->match(Token::Type::LESS)) {
+    auto parent = scanner_->consume(Token::Type::IDENTIFIER, kExpectIdentifier);
+    if (klass.lexeme == parent.lexeme) {
+      parse_error(klass, "class can't inherit from itself");
+    }
+    namedVariable(chunk, parent, false, depth);
+    namedVariable(chunk, klass, false, depth);
+    chunk.addCode(OpCode::INHERIT, parent.line);
+  }
+
   namedVariable(chunk, klass, false, depth);
 
   chunk.enclosingType = chunk.type;

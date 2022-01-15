@@ -253,6 +253,20 @@ class VM {
           stack_.pop();
           break;
         }
+        case OpCode::INHERIT: {
+          try {
+            auto superclass = std::get<Class>(stack_.peek(1));
+            auto subclass = std::get<Class>(stack_.peek(0));
+            for (auto& method : superclass->methods) {
+              subclass->methods.insert(method);
+            }
+            stack_.pop();  // subclass
+            stack_.pop();  // parent
+          } catch (std::bad_variant_access&) {
+            runtimeError("Superclass must be a class");
+          }
+          break;
+        }
         case OpCode::CLASS: {
           auto name = read_string();
           Class klass = std::make_shared<ClassObject>(name);

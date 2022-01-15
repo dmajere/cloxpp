@@ -110,9 +110,15 @@ class ChainCall {
                 this.inner = "inner";
             }
         }
-        
+
         this.outer = Inner();
     }
 }
 var chain = ChainCall();
 Test("Class chain call", assertEq(chain.outer.inner, "inner"));
+
+class Parent {
+}
+class Child < Parent {}
+
+var object = Child();
